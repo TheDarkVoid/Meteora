@@ -5,12 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using Meteora;
 
-class Program
+namespace MeteoraApp2
 {
-	static void Main(string[] args)
+	class Program
 	{
-		var mView = new MeteoraView();
-		Console.ReadLine();
-
+		static void Main(string[] args)
+		{
+			var mView = new MeteoraView();
+		}
 	}
 }

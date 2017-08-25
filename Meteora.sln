@@ -1,9 +1,18 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
-VisualStudioVersion = 15.0.26430.13
+VisualStudioVersion = 15.0.26430.16
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Meteora", "Meteora\Meteora.csproj", "{CF2F7BDA-9288-42BA-9D5A-25568328EBEC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeteoraApp", "MeteoraApp\MeteoraApp.csproj", "{98216A5F-A57B-4B57-8698-E67D7EB86A3F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{CF2F7BDA-9288-42BA-9D5A-25568328EBEC} = {CF2F7BDA-9288-42BA-9D5A-25568328EBEC}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeteoraTests", "MeteoraTests\MeteoraTests.csproj", "{C1E7CBC1-531B-421B-B770-736E633B8086}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MeteoraApp2", "MeteoraApp2\MeteoraApp2.csproj", "{4CC9A814-FF0F-4546-9784-EFDEF02F2250}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +24,18 @@ Global
 		{CF2F7BDA-9288-42BA-9D5A-25568328EBEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CF2F7BDA-9288-42BA-9D5A-25568328EBEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CF2F7BDA-9288-42BA-9D5A-25568328EBEC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{98216A5F-A57B-4B57-8698-E67D7EB86A3F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{98216A5F-A57B-4B57-8698-E67D7EB86A3F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{98216A5F-A57B-4B57-8698-E67D7EB86A3F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{98216A5F-A57B-4B57-8698-E67D7EB86A3F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C1E7CBC1-531B-421B-B770-736E633B8086}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C1E7CBC1-531B-421B-B770-736E633B8086}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C1E7CBC1-531B-421B-B770-736E633B8086}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C1E7CBC1-531B-421B-B770-736E633B8086}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4CC9A814-FF0F-4546-9784-EFDEF02F2250}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4CC9A814-FF0F-4546-9784-EFDEF02F2250}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4CC9A814-FF0F-4546-9784-EFDEF02F2250}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4CC9A814-FF0F-4546-9784-EFDEF02F2250}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
