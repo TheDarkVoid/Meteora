@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Meteora.View;
 
 namespace Meteora.Tests
 {
@@ -14,10 +15,6 @@ namespace Meteora.Tests
 		[TestMethod()]
 		public void MeteoraViewTest()
 		{
-			MeteoraView mView = new MeteoraView();
-
-
-			mView.Dispose();
 		}
 	}
 }

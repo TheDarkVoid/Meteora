@@ -4,13 +4,22 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Meteora;
+using System.Windows.Forms;
+using System.Threading;
+using Meteora.View;
 
 class Program
 {
+	[STAThread]
 	static void Main(string[] args)
 	{
-		var mView = new MeteoraView();
-		Console.ReadLine();
-
+		Application.EnableVisualStyles();
+		Form gameWindow = new MeteoraWindow();
+		var view = new MeteoraView(gameWindow.Handle);
+		Application.Run(gameWindow);
+		while (gameWindow.Visible)
+		{
+			Console.ReadLine();
+		}
 	}
 }

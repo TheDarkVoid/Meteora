@@ -25,7 +25,7 @@ namespace MeteoraApp
 		{
 			InitializeComponent();
 
-			var mView = new MeteoraView();
+			
 		}
 	}
 }

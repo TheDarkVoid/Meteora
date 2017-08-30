@@ -5,8 +5,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Vulkan.Windows;
 using Vulkan;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 
-namespace Meteora
+namespace Meteora.View
 {
 	public class MeteoraView : IDisposable
 	{
@@ -18,20 +20,28 @@ namespace Meteora
 		private Semaphore _vkSemaphore;
 		private Queue _vkQueue;
 
-		public MeteoraView()
+		public MeteoraView(IntPtr hWnd)
 		{
+			var enabledExtensionNames = new[]
+			{
+				"VK_KHR_surface",
+				"VK_KHR_win32_surface"
+			};
 			_vkInstance = new Instance(new InstanceCreateInfo
 			{
 				ApplicationInfo = new ApplicationInfo
 				{
 					EngineName = "Meteora",
 					EngineVersion = 0
-				}
+				},
+				EnabledExtensionCount = (uint)enabledExtensionNames.Length,
+				EnabledExtensionNames = enabledExtensionNames
 			});
 			var queueInfo = new DeviceQueueCreateInfo { QueuePriorities = new float[] { 1.0f } };
 			var pDevice = _vkInstance.EnumeratePhysicalDevices()[0];
 			_vkDevice = pDevice.CreateDevice(new DeviceCreateInfo
 			{
+				EnabledExtensionCount = 1,
 				EnabledExtensionNames = new string[] { "VK_KHR_swapchain" },
 				QueueCreateInfos = new DeviceQueueCreateInfo[] { queueInfo }
 			});
@@ -39,7 +49,9 @@ namespace Meteora
 			//TODO Figure this out
 			var surface = _vkInstance.CreateWin32SurfaceKHR(new Win32SurfaceCreateInfoKhr
 			{
-				
+				Hwnd = hWnd,
+				Hinstance = Process.GetCurrentProcess().Handle,
+				Flags = 0
 			});
 
 			_vkQueue = _vkDevice.GetQueue(0, 0);
@@ -55,7 +67,7 @@ namespace Meteora
 			_vkCommandBuffers = CreateCommandBuffers(images, frameBuffers, renderPass, sCapabilities);
 			_vkFence = _vkDevice.CreateFence(new FenceCreateInfo { });
 			_vkSemaphore = _vkDevice.CreateSemaphore(new SemaphoreCreateInfo { });
-
+			DrawFrame();
 		}
 
 		//TODO: Update draw frame
@@ -105,10 +117,14 @@ namespace Meteora
 		SurfaceFormatKhr SelectFormat(PhysicalDevice physicalDevice, SurfaceKhr surface)
 		{
 			foreach (var f in physicalDevice.GetSurfaceFormatsKHR(surface))
-				if (f.Format == Format.R8G8B8A8Unorm)
-					return f;
+			{
+				Console.WriteLine(f.Format);
+				/*if (f.Format == Format.R8G8B8A8Unorm)
+					return f;*/
+			}
+			return physicalDevice.GetSurfaceFormatsKHR(surface).First(x=> x.Format == Format.B8G8R8A8Srgb);
 
-			throw new Exception("didn't find the R8G8B8A8Unorm format");
+			//throw new Exception("didn't find the R8G8B8A8Unorm format");
 		}
 
 
