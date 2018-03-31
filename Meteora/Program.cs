@@ -7,6 +7,7 @@ using Meteora;
 using System.Windows.Forms;
 using System.Threading;
 using Meteora.View;
+using Vulkan;
 
 class Program
 {
@@ -15,11 +16,11 @@ class Program
 	{
 		Application.EnableVisualStyles();
 		Form gameWindow = new MeteoraWindow();
-		var view = new MeteoraView(gameWindow.Handle);
+		MeteoraClearView clearView = new MeteoraClearView();
 		Application.Run(gameWindow);
-		while (gameWindow.Visible)
+		/*while (gameWindow.Visible)
 		{
 			Console.ReadLine();
-		}
+		}*/
 	}
 }

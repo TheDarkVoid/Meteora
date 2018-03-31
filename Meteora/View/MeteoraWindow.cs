@@ -10,12 +10,14 @@ namespace Meteora.View
 {
 	public class MeteoraWindow : Form
 	{
-		public MeteoraWindow(int width = 1280, int height = 720)
+		public MeteoraWindow(int width = 1280, int height = 720, string title = "Meteora Window")
 		{
 			this.Size = new Size(width, height);
+			this.Name = title;
 			this.StartPosition = FormStartPosition.CenterScreen;
 			this.SizeGripStyle = SizeGripStyle.Hide;
 			this.FormBorderStyle = FormBorderStyle.FixedSingle;
+			this.Controls.Add(new MeteoraControl(new MeteoraClearView()) { Dock = DockStyle.Fill });
 		}
 	}
 }
