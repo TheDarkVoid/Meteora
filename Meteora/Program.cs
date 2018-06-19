@@ -15,12 +15,10 @@ class Program
 	static void Main(string[] args)
 	{
 		Application.EnableVisualStyles();
-		Form gameWindow = new MeteoraWindow();
-		MeteoraClearView clearView = new MeteoraClearView();
-		Application.Run(gameWindow);
-		/*while (gameWindow.Visible)
+		using (MeteoraWindow gameWindow = new MeteoraWindow(1920, 1080))
 		{
-			Console.ReadLine();
-		}*/
+			gameWindow.Name = "Meteora Window";
+			Application.Run(gameWindow);
+		}
 	}
 }

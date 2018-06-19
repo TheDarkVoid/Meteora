@@ -11,7 +11,6 @@ namespace MeteoraApp2
 	{
 		static void Main(string[] args)
 		{
-			var mView = new MeteoraView();
 		}
 	}
 }

@@ -53,6 +53,8 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Data\CreateData.cs" />
+    <Compile Include="Data\QueueFamilyIndices.cs" />
     <Compile Include="MeteoraControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -65,13 +67,26 @@
     <Compile Include="View\MeteoraWindow.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="VulkanControl.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
     <None Include="packages.config" />
+    <Content Include="Shaders\Fragment\frag.spv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="Shaders\Fragment\shader.frag" />
+    <None Include="Shaders\Vertex\shader.vert" />
+    <Content Include="Shaders\Vertex\vert.spv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
+    <PostBuildEvent>
+    </PostBuildEvent>
+  </PropertyGroup>
 </Project>

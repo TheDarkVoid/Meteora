@@ -7,112 +7,393 @@ using Vulkan.Windows;
 using Vulkan;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Meteora.Data;
+using System.IO;
 
 namespace Meteora.View
 {
-	public abstract class MeteoraViewBase : IMeteoraView
+	public class MeteoraViewBase : IMeteoraView
 	{
-		protected Device device;
-		protected Queue queue;
+		public const uint VK_SUBPASS_INTERNAL = ~0U;
+		public const int MAX_FRAMES_IN_FLIGHT = 2;
+
+		public bool initialized;
+		public bool running;
+		public Device device;
+
+		protected InstanceCreateData data;
+		protected Queue graphicsQueue;
+		protected Queue presentQueue;
 		protected SwapchainKhr swapchain;
-		protected Semaphore semaphore;
-		protected SurfaceCapabilitiesKhr surfaceCapabilities;
-		protected Fence fence;
 		protected Image[] images;
-		protected Framebuffer[] frameBuffers;
+		protected ImageView[] imageViews;
+		protected Extent2D extent;
+		protected SurfaceFormatKhr format;
 		protected RenderPass renderPass;
+		protected PipelineLayout pipelineLayout;
+		protected Pipeline graphicsPipeline;
+		protected Framebuffer[] framebuffers;
+		protected CommandPool commandPool;
+		protected CommandBuffer[] commandBuffers;
+		protected Semaphore[] imageAvailableSemaphore;
+		protected Semaphore[] renderFinishedSemaphore;
+		protected uint bufferSize;
+		protected Fence[] inflightFences;
+		protected int currentFrame = 0;
 
-		protected bool initialized;
 
-		public MeteoraViewBase()
+
+		#region Draw
+		public virtual void DrawFrame()
 		{
+			if (!initialized)
+				return;
 
-		}
+			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
+			device.ResetFence(inflightFences[currentFrame]);
+			if(!running)
+				return;
 
-		protected SurfaceFormatKhr SelectFormat(PhysicalDevice physicalDevice, SurfaceKhr surface)
-		{
-			foreach (var f in physicalDevice.GetSurfaceFormatsKHR(surface))
-				if (f.Format == Format.R8G8B8A8Unorm || f.Format == Format.B8G8R8A8Unorm)
-					return f;
+			var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
+			Semaphore[] waitSemaphoires = { imageAvailableSemaphore[currentFrame] };
+			Semaphore[] signalSemaphores = { renderFinishedSemaphore[currentFrame] };
+			PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
+			
 
-			throw new System.Exception("didn't find the R8G8B8A8Unorm or B8G8R8A8Unorm format");
-		}
-
-		protected SwapchainKhr CreateSwapchain(SurfaceKhr surface, SurfaceFormatKhr surfaceFormat)
-		{
-			var compositeAlpha = surfaceCapabilities.SupportedCompositeAlpha.HasFlag(CompositeAlphaFlagsKhr.Inherit)
-				? CompositeAlphaFlagsKhr.Inherit
-				: CompositeAlphaFlagsKhr.Opaque;
-
-			var swapchainInfo = new SwapchainCreateInfoKhr
+			var submitInfo = new SubmitInfo
 			{
-				Surface = surface,
-				MinImageCount = surfaceCapabilities.MinImageCount,
-				ImageFormat = surfaceFormat.Format,
-				ImageColorSpace = surfaceFormat.ColorSpace,
-				ImageExtent = surfaceCapabilities.CurrentExtent,
-				ImageUsage = ImageUsageFlags.ColorAttachment,
-				PreTransform = SurfaceTransformFlagsKhr.Identity,
-				ImageArrayLayers = 1,
-				ImageSharingMode = SharingMode.Exclusive,
-				QueueFamilyIndices = new uint[] { 0 },
-				PresentMode = PresentModeKhr.Fifo,
-				CompositeAlpha = compositeAlpha
+				WaitSemaphoreCount = 1,
+				WaitSemaphores = waitSemaphoires,
+				WaitDstStageMask = waitStages,
+				CommandBufferCount = 1,
+				CommandBuffers = new CommandBuffer[] { commandBuffers [imageIndex] },
+				SignalSemaphoreCount = 1,
+				SignalSemaphores = signalSemaphores
 			};
 
-			return device.CreateSwapchainKHR(swapchainInfo);
+			graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
+			var swapChains = new SwapchainKhr[] { swapchain };
+
+			var presentInfo = new PresentInfoKhr
+			{
+				WaitSemaphoreCount = 1,
+				WaitSemaphores = signalSemaphores,
+				SwapchainCount = 1,
+				Swapchains = swapChains,
+				ImageIndices = new uint[] { imageIndex }
+			};
+
+			presentQueue.PresentKHR(presentInfo);
+			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		}
+		#endregion
+
+		#region Init
+		public virtual void Initialize(InstanceCreateData data)
+		{
+			this.data = data;
+			var graphicsQueue = new DeviceQueueCreateInfo
+			{
+				QueuePriorities = new float[] { 1.0f },
+				QueueFamilyIndex = (uint)data.queueFamilyIndices.GraphicsFamily
+			};
+			var presentQueue = new DeviceQueueCreateInfo
+			{
+				QueuePriorities = new float[] { 1.0f },
+				QueueFamilyIndex = (uint)data.queueFamilyIndices.PresentFamily
+			};
+			var deviceInfo = new DeviceCreateInfo
+			{
+				EnabledExtensionNames = data.enabledDeviceExtensions,
+				EnabledExtensionCount = (uint)data.enabledDeviceExtensions.Length,
+				EnabledLayerNames = data.enabledLayers,
+				EnabledLayerCount = (uint)data.enabledLayers.Length,
+				QueueCreateInfos = new DeviceQueueCreateInfo[] { graphicsQueue, presentQueue }
+			};
+
+			device = data.physicalDevice.CreateDevice(deviceInfo);
+			this.graphicsQueue = device.GetQueue((uint)data.queueFamilyIndices.GraphicsFamily, 0);
+			this.presentQueue = device.GetQueue((uint)data.queueFamilyIndices.PresentFamily, 0);
+
+			CreateSwapChain();
+			CreateImageViews();
+			CreateRenderPass();
+			CreateGraphicsPipeline();
+			CreateFrameBuffers();
+			CreateCommandPool();
+			CreateCommandBuffers();
+			CreateSyncObjects();
+			initialized = running = true;
+		}
+		#endregion
+
+		#region Swapchain
+		protected SurfaceFormatKhr ChooseFormat(SurfaceFormatKhr[] supportedFormats)
+		{
+			if (supportedFormats.Length == 1 && supportedFormats[0].Format == Format.Undefined)
+				return new SurfaceFormatKhr
+				{
+					ColorSpace = ColorSpaceKhr.SrgbNonlinear,
+					Format = Format.R8G8B8A8Unorm
+				};
+
+			foreach (var f in supportedFormats)
+				if (f.Format == Format.R8G8B8A8Unorm || f.Format == Format.B8G8R8A8Unorm)
+					return f;
+			return supportedFormats[0];
 		}
 
-		protected Framebuffer[] CreateFramebuffers(Image[] images, SurfaceFormatKhr surfaceFormat)
+		protected PresentModeKhr ChoosePresentMode(PresentModeKhr[] presentModes)
 		{
-			var displayViews = new ImageView[images.Length];
+			foreach (PresentModeKhr mode in presentModes)
+			{
+				if (mode == PresentModeKhr.Mailbox)
+					return mode;
+				else if (mode == PresentModeKhr.Immediate)
+					return mode;
+			}
+			return PresentModeKhr.Fifo;
+		}
 
+		protected Extent2D ChooseSwapExtent(SurfaceCapabilitiesKhr capabilities)
+		{
+			if (capabilities.CurrentExtent.Width != uint.MaxValue)
+				return capabilities.CurrentExtent;
+			else
+				return new Extent2D
+				{
+					Height = Math.Max(capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height),
+					Width = Math.Max(capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width)
+				};
+		}
+
+		protected void CreateSwapChain()
+		{
+			format = ChooseFormat(data.formats);
+			var presentMode = ChoosePresentMode(data.presentModes);
+			extent = ChooseSwapExtent(data.surfaceCapabilities);
+
+			var imageCount = data.surfaceCapabilities.MinImageCount + 1;
+			if (data.surfaceCapabilities.MaxImageCount > 0 && imageCount > data.surfaceCapabilities.MaxImageCount)
+				imageCount = data.surfaceCapabilities.MaxImageCount;
+
+			var swapChainInfo = new SwapchainCreateInfoKhr
+			{
+				Surface = data.surface,
+				MinImageCount = imageCount,
+				ImageFormat = format.Format,
+				ImageColorSpace = format.ColorSpace,
+				ImageExtent = extent,
+				ImageArrayLayers = 1,
+				ImageUsage = ImageUsageFlags.ColorAttachment,
+				PreTransform = data.surfaceCapabilities.CurrentTransform,
+				CompositeAlpha = CompositeAlphaFlagsKhr.Opaque,
+				PresentMode = presentMode,
+				Clipped = true
+			};
+			var indices = data.queueFamilyIndices;
+			var queueFamilyIndices = new uint[] { (uint)indices.GraphicsFamily, (uint)indices.PresentFamily };
+			if (indices.PresentFamily != indices.GraphicsFamily)
+			{
+				swapChainInfo.ImageSharingMode = SharingMode.Concurrent;
+				swapChainInfo.QueueFamilyIndexCount = (uint)queueFamilyIndices.Length;
+				swapChainInfo.QueueFamilyIndices = queueFamilyIndices;
+			}
+			else
+				swapChainInfo.ImageSharingMode = SharingMode.Exclusive;
+
+			swapchain = device.CreateSwapchainKHR(swapChainInfo);
+
+			images = device.GetSwapchainImagesKHR(swapchain);
+			bufferSize = imageCount;
+		}
+		#endregion
+
+		#region Image Views
+		protected void CreateImageViews()
+		{
+			imageViews = new ImageView[bufferSize];
 			for (int i = 0; i < images.Length; i++)
 			{
-				var viewCreateInfo = new ImageViewCreateInfo
+				var viewInfo = new ImageViewCreateInfo
 				{
 					Image = images[i],
 					ViewType = ImageViewType.View2D,
-					Format = surfaceFormat.Format,
+					Format = format.Format,
 					Components = new ComponentMapping
 					{
-						R = ComponentSwizzle.R,
-						G = ComponentSwizzle.G,
-						B = ComponentSwizzle.B,
-						A = ComponentSwizzle.A
+						R = ComponentSwizzle.Identity,
+						G = ComponentSwizzle.Identity,
+						B = ComponentSwizzle.Identity,
+						A = ComponentSwizzle.Identity,
 					},
 					SubresourceRange = new ImageSubresourceRange
 					{
 						AspectMask = ImageAspectFlags.Color,
+						BaseMipLevel = 0,
 						LevelCount = 1,
+						BaseArrayLayer = 0,
 						LayerCount = 1
 					}
 				};
-				displayViews[i] = device.CreateImageView(viewCreateInfo);
+				imageViews[i] = device.CreateImageView(viewInfo);
 			}
-			var framebuffers = new Framebuffer[images.Length];
+		}
+		#endregion
 
-			for (int i = 0; i < images.Length; i++)
+		#region Graphics Pipeline
+		protected void CreateGraphicsPipeline()
+		{
+			var fragModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Fragment/frag.spv"));
+			var vertModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Vertex/vert.spv"));
+
+			var vertShaderStageInfo = new PipelineShaderStageCreateInfo
 			{
-				var frameBufferCreateInfo = new FramebufferCreateInfo
-				{
-					Layers = 1,
-					RenderPass = renderPass,
-					Attachments = new ImageView[] { displayViews[i] },
-					Width = surfaceCapabilities.CurrentExtent.Width,
-					Height = surfaceCapabilities.CurrentExtent.Height
-				};
-				framebuffers[i] = device.CreateFramebuffer(frameBufferCreateInfo);
-			}
+				Stage = ShaderStageFlags.Vertex,
+				Module = vertModule,
+				Name = "main"
+			};
 
-			return framebuffers;
+			var fragShaderStageInfo = new PipelineShaderStageCreateInfo
+			{
+				Stage = ShaderStageFlags.Fragment,
+				Module = fragModule,
+				Name = "main"
+			};
+
+			var shaderStages = new PipelineShaderStageCreateInfo[]
+			{
+				vertShaderStageInfo,
+				fragShaderStageInfo
+			};
+
+			var vertexInputInfo = new PipelineVertexInputStateCreateInfo
+			{
+				VertexAttributeDescriptionCount = 0,
+				VertexBindingDescriptionCount = 0
+			};
+
+			var inputAssembly = new PipelineInputAssemblyStateCreateInfo
+			{
+				Topology = PrimitiveTopology.TriangleList,
+				PrimitiveRestartEnable = false
+			};
+
+			var viewport = new Viewport
+			{
+				X = 0f,
+				Y = 0f,
+				Width = extent.Width,
+				Height = extent.Height,
+				MinDepth = 0f,
+				MaxDepth = 1f
+			};
+
+			var scissor = new Rect2D
+			{
+				Offset = new Offset2D
+				{
+					X = 0,
+					Y = 0
+				},
+				Extent = extent
+			};
+
+			var viewportState = new PipelineViewportStateCreateInfo
+			{
+				ViewportCount = 1,
+				Viewports = new Viewport[] { viewport },
+				ScissorCount = 1,
+				Scissors = new Rect2D[] { scissor }
+			};
+
+			var rasterizer = new PipelineRasterizationStateCreateInfo
+			{
+				DepthClampEnable = false,
+				RasterizerDiscardEnable = false,
+				PolygonMode = PolygonMode.Fill,
+				LineWidth = 1f,
+				CullMode = CullModeFlags.Back,
+				FrontFace = FrontFace.Clockwise,
+				DepthBiasEnable = false,
+				DepthBiasConstantFactor = 0f,
+				DepthBiasClamp = 0f,
+				DepthBiasSlopeFactor = 0f
+			};
+
+			var msaa = new PipelineMultisampleStateCreateInfo
+			{
+				SampleShadingEnable = false,
+				RasterizationSamples = SampleCountFlags.Count1,
+				MinSampleShading = 1f,
+				AlphaToCoverageEnable = false,
+				AlphaToOneEnable = false
+			};
+
+			var colorBlendAttachment = new PipelineColorBlendAttachmentState
+			{
+				ColorWriteMask = ColorComponentFlags.R | ColorComponentFlags.G | ColorComponentFlags.B | ColorComponentFlags.A,
+				BlendEnable = false,
+				SrcColorBlendFactor = BlendFactor.One,
+				DstColorBlendFactor = BlendFactor.Zero,
+				ColorBlendOp = BlendOp.Add,
+				SrcAlphaBlendFactor = BlendFactor.One,
+				DstAlphaBlendFactor = BlendFactor.Zero,
+				AlphaBlendOp = BlendOp.Add
+			};
+
+			var colorBlending = new PipelineColorBlendStateCreateInfo
+			{
+				LogicOpEnable = false,
+				LogicOp = LogicOp.Copy,
+				AttachmentCount = 1,
+				Attachments = new PipelineColorBlendAttachmentState[] { colorBlendAttachment },
+			};
+
+			var layoutInfo = new PipelineLayoutCreateInfo();
+
+			pipelineLayout = device.CreatePipelineLayout(layoutInfo);
+
+			var pipelineCreateInfo = new GraphicsPipelineCreateInfo
+			{
+				StageCount = 2,
+				Stages = shaderStages,
+				VertexInputState = vertexInputInfo,
+				InputAssemblyState = inputAssembly,
+				ViewportState = viewportState,
+				RasterizationState = rasterizer,
+				MultisampleState = msaa,
+				ColorBlendState = colorBlending,
+				Layout = pipelineLayout,
+				RenderPass = renderPass,
+				Subpass = 0,
+				BasePipelineHandle = null,
+				BasePipelineIndex = -1
+			};
+
+			graphicsPipeline = device.CreateGraphicsPipelines(null, new GraphicsPipelineCreateInfo[] { pipelineCreateInfo })[0];
+
+			device.DestroyShaderModule(fragModule);
+			device.DestroyShaderModule(vertModule);
 		}
 
-		protected RenderPass CreateRenderPass(SurfaceFormatKhr surfaceFormat)
+		protected ShaderModule CreateShaderModule(byte[] code)
 		{
-			var attDesc = new AttachmentDescription
+			var shaderInfo = new ShaderModuleCreateInfo
 			{
-				Format = surfaceFormat.Format,
+				CodeSize = (UIntPtr)code.Length,
+				CodeBytes = code
+			};
+			return device.CreateShaderModule(shaderInfo);
+		}
+		#endregion
+
+		#region Render Pass
+		protected void CreateRenderPass()
+		{
+			var colorAttachment = new AttachmentDescription
+			{
+				Format = format.Format,
 				Samples = SampleCountFlags.Count1,
 				LoadOp = AttachmentLoadOp.Clear,
 				StoreOp = AttachmentStoreOp.Store,
@@ -121,56 +402,186 @@ namespace Meteora.View
 				InitialLayout = ImageLayout.Undefined,
 				FinalLayout = ImageLayout.PresentSrcKhr
 			};
-			var attRef = new AttachmentReference { Layout = ImageLayout.ColorAttachmentOptimal };
-			var subpassDesc = new SubpassDescription
+
+			var colorAttachmentRef = new AttachmentReference
+			{
+				Attachment = 0,
+				Layout = ImageLayout.ColorAttachmentOptimal
+			};
+
+			var subpass = new SubpassDescription
 			{
 				PipelineBindPoint = PipelineBindPoint.Graphics,
-				ColorAttachments = new AttachmentReference[] { attRef }
+				ColorAttachmentCount = 1,
+				ColorAttachments = new AttachmentReference[] { colorAttachmentRef },
 			};
-			var renderPassCreateInfo = new RenderPassCreateInfo
+
+			var dependency = new SubpassDependency
 			{
-				Attachments = new AttachmentDescription[] { attDesc },
-				Subpasses = new SubpassDescription[] { subpassDesc }
+				SrcSubpass = VK_SUBPASS_INTERNAL,
+				DstSubpass = 0,
+				SrcStageMask = PipelineStageFlags.ColorAttachmentOutput,
+				SrcAccessMask = 0,
+				DstStageMask = PipelineStageFlags.ColorAttachmentOutput,
+				DstAccessMask = AccessFlags.ColorAttachmentRead | AccessFlags.ColorAttachmentWrite
 			};
 
-			return device.CreateRenderPass(renderPassCreateInfo);
+			var renderPassInfo = new RenderPassCreateInfo
+			{
+				AttachmentCount = 1,
+				Attachments = new AttachmentDescription[] { colorAttachment },
+				SubpassCount = 1,
+				Subpasses = new SubpassDescription[] { subpass },
+				DependencyCount = 1,
+				Dependencies = new SubpassDependency[] { dependency }
+			};
+
+			renderPass = device.CreateRenderPass(renderPassInfo);
 		}
+		#endregion
 
-		public abstract void DrawFrame();
-
-		public virtual void Initialize(PhysicalDevice physicalDevice, SurfaceKhr surface)
+		#region Frame Buffers
+		protected void CreateFrameBuffers()
 		{
-			var queueFamilyProperties = physicalDevice.GetQueueFamilyProperties();
-
-			uint queueFamilyUsedIndex;
-			for (queueFamilyUsedIndex = 0; queueFamilyUsedIndex < queueFamilyProperties.Length; ++queueFamilyUsedIndex)
+			framebuffers = new Framebuffer[bufferSize];
+			for (int i = 0; i < bufferSize; i++)
 			{
-				if (!physicalDevice.GetSurfaceSupportKHR(queueFamilyUsedIndex, surface)) continue;
+				ImageView[] attachments = { imageViews[i] };
 
-				if (queueFamilyProperties[queueFamilyUsedIndex].QueueFlags.HasFlag(QueueFlags.Graphics)) break;
+				var frameBufferInfo = new FramebufferCreateInfo
+				{
+					RenderPass = renderPass,
+					AttachmentCount = 1,
+					Attachments = attachments,
+					Width = extent.Width,
+					Height = extent.Height,
+					Layers = 1
+				};
+
+				framebuffers[i] = device.CreateFramebuffer(frameBufferInfo);
 			}
-
-			var queueInfo = new DeviceQueueCreateInfo { QueuePriorities = new float[] { 1.0f }, QueueFamilyIndex = queueFamilyUsedIndex };
-
-			var deviceInfo = new DeviceCreateInfo
-			{
-				EnabledExtensionNames = new string[] { "VK_KHR_swapchain" },
-				QueueCreateInfos = new DeviceQueueCreateInfo[] { queueInfo }
-			};
-
-			device = physicalDevice.CreateDevice(deviceInfo);
-			queue = device.GetQueue(0, 0);
-			surfaceCapabilities = physicalDevice.GetSurfaceCapabilitiesKHR(surface);
-			var surfaceFormat = SelectFormat(physicalDevice, surface);
-			swapchain = CreateSwapchain(surface, surfaceFormat);
-			images = device.GetSwapchainImagesKHR(swapchain);
-			renderPass = CreateRenderPass(surfaceFormat);
-			frameBuffers = CreateFramebuffers(images, surfaceFormat);
-			var fenceInfo = new FenceCreateInfo();
-			fence = device.CreateFence(fenceInfo);
-			var semaphoreInfo = new SemaphoreCreateInfo();
-			semaphore = device.CreateSemaphore(semaphoreInfo);
-			initialized = true;
 		}
+		#endregion
+
+		#region Command Pool
+		protected void CreateCommandPool()
+		{
+			var poolInfo = new CommandPoolCreateInfo
+			{
+				QueueFamilyIndex = (uint)data.queueFamilyIndices.GraphicsFamily
+			};
+			commandPool = device.CreateCommandPool(poolInfo);
+		}
+		#endregion
+
+		#region Command Buffers
+		protected void CreateCommandBuffers()
+		{
+			commandBuffers = new CommandBuffer[bufferSize];
+			var allocInfo = new CommandBufferAllocateInfo
+			{
+				CommandPool = commandPool,
+				Level = CommandBufferLevel.Primary,
+				CommandBufferCount = bufferSize
+			};
+			commandBuffers = device.AllocateCommandBuffers(allocInfo);
+
+			for (int i = 0; i < bufferSize; i++)
+			{
+				var beginInfo = new CommandBufferBeginInfo
+				{
+					Flags = CommandBufferUsageFlags.SimultaneousUse
+				};
+				commandBuffers[i].Begin(beginInfo);
+
+				var clearColor = new ClearValue
+				{
+					Color = new ClearColorValue(new uint[] { 255, 0, 100, 255 })
+				};
+				var renderPassInfo = new RenderPassBeginInfo
+				{
+					RenderPass = renderPass,
+					Framebuffer = framebuffers[i],
+					RenderArea = new Rect2D
+					{
+						Offset = new Offset2D
+						{
+							X = 0,
+							Y = 0
+						},
+						Extent = extent
+					},
+					ClearValueCount = 1,
+					ClearValues = new ClearValue[] { clearColor }
+				};
+				commandBuffers[i].CmdBeginRenderPass(renderPassInfo, SubpassContents.Inline);
+				commandBuffers[i].CmdBindPipeline(PipelineBindPoint.Graphics, graphicsPipeline);
+				commandBuffers[i].CmdDraw(3, 1, 0, 0);
+				commandBuffers[i].CmdEndRenderPass();
+				commandBuffers[i].End();
+			}
+		}
+		#endregion
+
+		#region Semaphores and Fences
+		protected void CreateSyncObjects()
+		{
+			imageAvailableSemaphore = new Semaphore[MAX_FRAMES_IN_FLIGHT];
+			renderFinishedSemaphore = new Semaphore[MAX_FRAMES_IN_FLIGHT];
+			inflightFences = new Fence[MAX_FRAMES_IN_FLIGHT];
+			var sempahoreInfo = new SemaphoreCreateInfo();
+			var fenceInfo = new FenceCreateInfo
+			{
+				Flags = FenceCreateFlags.Signaled
+			};
+			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			{
+				renderFinishedSemaphore[i] = device.CreateSemaphore(sempahoreInfo);
+				imageAvailableSemaphore[i] = device.CreateSemaphore(sempahoreInfo);
+				inflightFences[i] = device.CreateFence(fenceInfo);
+			}
+		}
+		#endregion
+
+		#region IDisposable Support
+		private bool disposedValue = false; // To detect redundant calls
+
+		protected virtual void Dispose(bool disposing)
+		{
+			if (!disposedValue)
+			{
+				if (disposing)
+				{
+					device.WaitIdle();
+					for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+					{
+						device.DestroySemaphore(imageAvailableSemaphore[i]);
+						device.DestroySemaphore(renderFinishedSemaphore[i]);
+						device.DestroyFence(inflightFences[i]);
+					}
+					device.DestroyCommandPool(commandPool);
+					device.DestroyPipeline(graphicsPipeline);
+					device.DestroyPipelineLayout(pipelineLayout);
+					device.DestroyRenderPass(renderPass);
+					for (int i = 0; i < bufferSize; i++)
+					{
+						device.DestroyFramebuffer(framebuffers[i]);
+						device.DestroyImageView(imageViews[i]);
+					}
+					device.DestroySwapchainKHR(swapchain);
+					device.Destroy();
+				}
+				disposedValue = true;
+			}
+		}
+
+		// This code added to correctly implement the disposable pattern.
+		public void Dispose()
+		{
+			running = false;
+			Dispose(true);
+			//GC.SuppressFinalize(this);
+		}
+		#endregion
 	}
 }
