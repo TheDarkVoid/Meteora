@@ -12,7 +12,7 @@ namespace Meteora.View
 	public class MeteoraWindow : Form
 	{
 
-		public MeteoraWindow(int width = 1280, int height = 720, string title = "Meteora Window")
+		public MeteoraWindow(MeteoraViewBase view, int width = 1280, int height = 720, string title = "Meteora Window")
 		{
 			//Adjust for window border
 			width += 20;
@@ -23,7 +23,7 @@ namespace Meteora.View
 			this.FormBorderStyle = FormBorderStyle.Fixed3D;
 			this.Name = title;
 			this.Text = title;
-			this.Controls.Add(new MeteoraControl(new MeteoraViewBase(), title) { Dock = DockStyle.Fill });
+			this.Controls.Add(new MeteoraControl(view, title) { Dock = DockStyle.Fill });
 		}
 	}
 }

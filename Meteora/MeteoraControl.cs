@@ -32,7 +32,9 @@ namespace Meteora
 			};
 			data.instance = CreateInstance(appInfo);
 			data.view = view;
+			data.appName = appName;
 			data.control = this;
+			this.BackColor = System.Drawing.Color.FromArgb(25, 0, 10);
 		}
 
 		public MeteoraControl(MeteoraViewBase view, ApplicationInfo appInfo)

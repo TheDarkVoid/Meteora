@@ -15,7 +15,7 @@ class Program
 	static void Main(string[] args)
 	{
 		Application.EnableVisualStyles();
-		using (MeteoraWindow gameWindow = new MeteoraWindow(1920, 1080))
+		using (MeteoraWindow gameWindow = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080))
 		{
 			Application.Run(gameWindow);
 		}

@@ -9,10 +9,11 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Meteora.Data;
 using System.IO;
+using System.Windows.Threading;
 
 namespace Meteora.View
 {
-	public class MeteoraViewBase : IMeteoraView
+	public abstract class MeteoraViewBase : IMeteoraView
 	{
 		public const uint VK_SUBPASS_INTERNAL = ~0U;
 		public const int MAX_FRAMES_IN_FLIGHT = 2;
@@ -40,18 +41,21 @@ namespace Meteora.View
 		protected uint bufferSize;
 		protected Fence[] inflightFences;
 		protected int currentFrame = 0;
+		protected Dispatcher dispatcher;
 
 
-
-		private Semaphore[] waitSemaphores = new Semaphore[1];
-		private Semaphore[] signalSemaphores = new Semaphore[1];
-		private CommandBuffer[] renderCommandBuffers = new CommandBuffer[1];
-		private SwapchainKhr[] renderSwapchains = new SwapchainKhr[1];
-		private uint[] renderImageIndices = new uint[1];
+		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
+		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
+		private readonly CommandBuffer[] renderCommandBuffers = new CommandBuffer[1];
+		private readonly SwapchainKhr[] renderSwapchains = new SwapchainKhr[1];
+		private readonly uint[] renderImageIndices = new uint[1];
 
 		private SubmitInfo submitInfo;
 		private PresentInfoKhr presentInfo;
 		private PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
+		private int frameCount;
+		private DateTime nextSecond = DateTime.Now;
+		private System.Windows.Forms.MethodInvoker FPSCounter;
 
 
 		#region Draw
@@ -59,28 +63,13 @@ namespace Meteora.View
 		{
 			if (!initialized)
 				return;
-			if(submitInfo == null)
-			{
-				submitInfo = new SubmitInfo
-				{
-					WaitSemaphoreCount = 1,
-					WaitDstStageMask = waitStages,
-					CommandBufferCount = 1,
-					SignalSemaphoreCount = 1,
-				};
-			}
-			if(presentInfo == null)
-			{
-				presentInfo = new PresentInfoKhr
-				{
-					WaitSemaphoreCount = 1,
-					SwapchainCount = 1,
-				};
-			}
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
 			if(!running)
 				return;
+			if(DateTime.Now >= nextSecond )
+				data.control.ParentForm.Invoke(FPSCounter);
+			frameCount++;
 			try
 			{
 				var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
@@ -104,7 +93,7 @@ namespace Meteora.View
 			}catch(ResultException e)
 			{
 				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
-					RecreateSwapChain();
+					dispatcher.Invoke(RecreateSwapChain);
 				else
 					throw e;
 			}
@@ -131,7 +120,7 @@ namespace Meteora.View
 				EnabledExtensionNames = data.enabledDeviceExtensions,
 				EnabledExtensionCount = (uint)data.enabledDeviceExtensions.Length,
 				EnabledLayerNames = data.enabledLayers,
-				EnabledLayerCount = (uint)data.enabledLayers.Length,
+				EnabledLayerCount = (data.enabledLayers == null ? 0 : (uint)data.enabledLayers.Length),
 				QueueCreateInfos = new DeviceQueueCreateInfo[] { graphicsQueue, presentQueue }
 			};
 
@@ -147,6 +136,29 @@ namespace Meteora.View
 			CreateCommandPool();
 			CreateCommandBuffers();
 			CreateSyncObjects();
+
+			FPSCounter = delegate
+			{
+				data.control.ParentForm.Text = $"{data.appName}: {Math.Round(frameCount / (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds)} FPS";
+				nextSecond = DateTime.Now.AddSeconds(1);
+				frameCount = 0;
+			};
+
+			submitInfo = new SubmitInfo
+			{
+				WaitSemaphoreCount = 1,
+				WaitDstStageMask = waitStages,
+				CommandBufferCount = 1,
+				SignalSemaphoreCount = 1,
+			};
+			presentInfo = new PresentInfoKhr
+			{
+				WaitSemaphoreCount = 1,
+				SwapchainCount = 1,
+			};
+
+			dispatcher = Dispatcher.CurrentDispatcher;
+
 			initialized = running = true;
 		}
 		#endregion
@@ -299,30 +311,9 @@ namespace Meteora.View
 		#endregion
 
 		#region Graphics Pipeline
-		protected void CreateGraphicsPipeline()
+		protected virtual void CreateGraphicsPipeline()
 		{
-			var fragModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Fragment/frag.spv"));
-			var vertModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Vertex/vert.spv"));
-
-			var vertShaderStageInfo = new PipelineShaderStageCreateInfo
-			{
-				Stage = ShaderStageFlags.Vertex,
-				Module = vertModule,
-				Name = "main"
-			};
-
-			var fragShaderStageInfo = new PipelineShaderStageCreateInfo
-			{
-				Stage = ShaderStageFlags.Fragment,
-				Module = fragModule,
-				Name = "main"
-			};
-
-			var shaderStages = new PipelineShaderStageCreateInfo[]
-			{
-				vertShaderStageInfo,
-				fragShaderStageInfo
-			};
+			var shaderStages = CreateShaderStages();
 
 			var vertexInputInfo = new PipelineVertexInputStateCreateInfo
 			{
@@ -413,7 +404,7 @@ namespace Meteora.View
 
 			var pipelineCreateInfo = new GraphicsPipelineCreateInfo
 			{
-				StageCount = 2,
+				StageCount = (shaderStages == null ? 0 : (uint)shaderStages.Length),
 				Stages = shaderStages,
 				VertexInputState = vertexInputInfo,
 				InputAssemblyState = inputAssembly,
@@ -430,8 +421,15 @@ namespace Meteora.View
 
 			graphicsPipeline = device.CreateGraphicsPipelines(null, new GraphicsPipelineCreateInfo[] { pipelineCreateInfo })[0];
 
-			device.DestroyShaderModule(fragModule);
-			device.DestroyShaderModule(vertModule);
+			if (shaderStages == null)
+				return;
+			foreach(var stage in shaderStages)
+				device.DestroyShaderModule(stage.Module);
+		}
+
+		protected virtual PipelineShaderStageCreateInfo[] CreateShaderStages()
+		{
+			return null;
 		}
 
 		protected ShaderModule CreateShaderModule(byte[] code)
@@ -542,41 +540,12 @@ namespace Meteora.View
 				CommandBufferCount = bufferSize
 			};
 			commandBuffers = device.AllocateCommandBuffers(allocInfo);
+			InitCommandBuffer();
+		}
 
-			for (int i = 0; i < bufferSize; i++)
-			{
-				var beginInfo = new CommandBufferBeginInfo
-				{
-					Flags = CommandBufferUsageFlags.SimultaneousUse
-				};
-				commandBuffers[i].Begin(beginInfo);
+		protected virtual void InitCommandBuffer()
+		{
 
-				var clearColor = new ClearValue
-				{
-					Color = new ClearColorValue(new uint[] { 255, 0, 100, 255 })
-				};
-				var renderPassInfo = new RenderPassBeginInfo
-				{
-					RenderPass = renderPass,
-					Framebuffer = framebuffers[i],
-					RenderArea = new Rect2D
-					{
-						Offset = new Offset2D
-						{
-							X = 0,
-							Y = 0
-						},
-						Extent = extent
-					},
-					ClearValueCount = 1,
-					ClearValues = new ClearValue[] { clearColor }
-				};
-				commandBuffers[i].CmdBeginRenderPass(renderPassInfo, SubpassContents.Inline);
-				commandBuffers[i].CmdBindPipeline(PipelineBindPoint.Graphics, graphicsPipeline);
-				commandBuffers[i].CmdDraw(3, 1, 0, 0);
-				commandBuffers[i].CmdEndRenderPass();
-				commandBuffers[i].End();
-			}
 		}
 		#endregion
 
@@ -609,22 +578,32 @@ namespace Meteora.View
 			{
 				if (disposing)
 				{
-					device.WaitIdle();
-					CleanupSwapChain();
-					for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-					{
-						device.DestroySemaphore(imageAvailableSemaphore[i]);
-						device.DestroySemaphore(renderFinishedSemaphore[i]);
-						device.DestroyFence(inflightFences[i]);
-					}
-					device.DestroyCommandPool(commandPool);
-					device.Destroy();
-					data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
-					data.instance.DestroySurfaceKHR(data.surface);
-					data.instance.Destroy();
+					//Managed
 				}
+				//Unmanaged
+				device.WaitIdle();
+				CleanupSwapChain();
+				for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+				{
+					device.DestroySemaphore(imageAvailableSemaphore[i]);
+					device.DestroySemaphore(renderFinishedSemaphore[i]);
+					device.DestroyFence(inflightFences[i]);
+				}
+				device.DestroyCommandPool(commandPool);
+				device.Destroy();
+#if DEBUG
+				data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
+#endif
+				data.instance.DestroySurfaceKHR(data.surface);
+				data.instance.Destroy();
 				disposedValue = true;
 			}
+		}
+
+		//Unmanaged Dispose
+		~MeteoraViewBase()
+		{
+			Dispose(false);
 		}
 
 		// This code added to correctly implement the disposable pattern.
@@ -632,8 +611,8 @@ namespace Meteora.View
 		{
 			running = false;
 			Dispose(true);
-			//GC.SuppressFinalize(this);
+			GC.SuppressFinalize(this);
 		}
-		#endregion
+#endregion
 	}
 }
