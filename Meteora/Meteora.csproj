@@ -61,8 +61,6 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="View\IMeteoraView.cs" />
-    <Compile Include="View\Meteora2DView.cs" />
-    <Compile Include="View\MeteoraClearView.cs" />
     <Compile Include="View\MeteoraViewBase.cs" />
     <Compile Include="View\MeteoraWindow.cs">
       <SubType>Form</SubType>
@@ -79,6 +77,11 @@
     <Content Include="Shaders\Vertex\vert.spv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="View\MeteoraWindow.resx">
+      <DependentUpon>MeteoraWindow.cs</DependentUpon>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

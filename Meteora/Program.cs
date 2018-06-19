@@ -17,7 +17,6 @@ class Program
 		Application.EnableVisualStyles();
 		using (MeteoraWindow gameWindow = new MeteoraWindow(1920, 1080))
 		{
-			gameWindow.Name = "Meteora Window";
 			Application.Run(gameWindow);
 		}
 	}

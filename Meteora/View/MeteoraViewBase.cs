@@ -87,6 +87,7 @@ namespace Meteora.View
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 		#endregion
+		
 
 		#region Init
 		public virtual void Initialize(InstanceCreateData data)
