@@ -11,7 +11,6 @@ namespace Meteora.View
 {
 	public class MeteoraWindow : Form
 	{
-		private MeteoraViewBase _view;
 
 		public MeteoraWindow(int width = 1280, int height = 720, string title = "Meteora Window")
 		{
@@ -20,12 +19,11 @@ namespace Meteora.View
 			height += 43;
 			this.Size = new Size(width, height);
 			this.StartPosition = FormStartPosition.CenterScreen;
-			this.SizeGripStyle = SizeGripStyle.Hide;
+			//this.SizeGripStyle = SizeGripStyle.Hide;
 			this.FormBorderStyle = FormBorderStyle.Fixed3D;
 			this.Name = title;
 			this.Text = title;
-			_view = new MeteoraViewBase();
-			this.Controls.Add(new MeteoraControl(_view, title) { Dock = DockStyle.Fill });
+			this.Controls.Add(new MeteoraControl(new MeteoraViewBase(), title) { Dock = DockStyle.Fill });
 		}
 	}
 }

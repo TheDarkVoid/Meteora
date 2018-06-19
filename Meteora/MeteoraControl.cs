@@ -32,6 +32,7 @@ namespace Meteora
 			};
 			data.instance = CreateInstance(appInfo);
 			data.view = view;
+			data.control = this;
 		}
 
 		public MeteoraControl(MeteoraViewBase view, ApplicationInfo appInfo)
@@ -76,10 +77,11 @@ namespace Meteora
 #if DEBUG
 		private void SetupDebugCallback(Instance instance)
 		{
+			data.debugCallbackDelegate = DebugCallback;
 			var createInfo = new DebugReportCallbackCreateInfoExt
 			{
 				Flags = DebugReportFlagsExt.Error | DebugReportFlagsExt.Warning,
-				PfnCallback = Marshal.GetFunctionPointerForDelegate((Instance.DebugReportCallback)DebugCallback)
+				PfnCallback = Marshal.GetFunctionPointerForDelegate(data.debugCallbackDelegate)
 			};
 			data.debugCallback = instance.CreateDebugReportCallbackEXT(createInfo);
 		}
@@ -188,9 +190,6 @@ namespace Meteora
 		{
 			OnClosing();
 			data.view.Dispose();
-			data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
-			data.instance.DestroySurfaceKHR(data.surface);
-			data.instance.Dispose();
 			base.Dispose(disposing);
 		}
 	}

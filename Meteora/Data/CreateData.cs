@@ -22,5 +22,7 @@ namespace Meteora.Data
 		public SurfaceFormatKhr[] formats;
 		public PresentModeKhr[] presentModes;
 		public DebugReportCallbackExt debugCallback;
+		public Instance.DebugReportCallback debugCallbackDelegate;
+		public MeteoraControl control;
 	}
 }

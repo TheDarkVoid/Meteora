@@ -43,48 +43,71 @@ namespace Meteora.View
 
 
 
+		private Semaphore[] waitSemaphores = new Semaphore[1];
+		private Semaphore[] signalSemaphores = new Semaphore[1];
+		private CommandBuffer[] renderCommandBuffers = new CommandBuffer[1];
+		private SwapchainKhr[] renderSwapchains = new SwapchainKhr[1];
+		private uint[] renderImageIndices = new uint[1];
+
+		private SubmitInfo submitInfo;
+		private PresentInfoKhr presentInfo;
+		private PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
+
+
 		#region Draw
 		public virtual void DrawFrame()
 		{
 			if (!initialized)
 				return;
-
+			if(submitInfo == null)
+			{
+				submitInfo = new SubmitInfo
+				{
+					WaitSemaphoreCount = 1,
+					WaitDstStageMask = waitStages,
+					CommandBufferCount = 1,
+					SignalSemaphoreCount = 1,
+				};
+			}
+			if(presentInfo == null)
+			{
+				presentInfo = new PresentInfoKhr
+				{
+					WaitSemaphoreCount = 1,
+					SwapchainCount = 1,
+				};
+			}
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
 			if(!running)
 				return;
-
-			var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
-			Semaphore[] waitSemaphoires = { imageAvailableSemaphore[currentFrame] };
-			Semaphore[] signalSemaphores = { renderFinishedSemaphore[currentFrame] };
-			PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
-			
-
-			var submitInfo = new SubmitInfo
+			try
 			{
-				WaitSemaphoreCount = 1,
-				WaitSemaphores = waitSemaphoires,
-				WaitDstStageMask = waitStages,
-				CommandBufferCount = 1,
-				CommandBuffers = new CommandBuffer[] { commandBuffers [imageIndex] },
-				SignalSemaphoreCount = 1,
-				SignalSemaphores = signalSemaphores
-			};
+				var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
+				waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
+				signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
 
-			graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
-			var swapChains = new SwapchainKhr[] { swapchain };
+				submitInfo.WaitSemaphores = waitSemaphores;
+				submitInfo.SignalSemaphores = signalSemaphores;
+				renderCommandBuffers[0] = commandBuffers[imageIndex];
+				submitInfo.CommandBuffers = renderCommandBuffers;
 
-			var presentInfo = new PresentInfoKhr
+				graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
+				renderSwapchains[0] = swapchain;
+				presentInfo.Swapchains = renderSwapchains;
+				renderImageIndices[0] = imageIndex;
+				presentInfo.ImageIndices = renderImageIndices;
+				presentInfo.WaitSemaphores = signalSemaphores;
+
+				presentQueue.PresentKHR(presentInfo);
+				currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+			}catch(ResultException e)
 			{
-				WaitSemaphoreCount = 1,
-				WaitSemaphores = signalSemaphores,
-				SwapchainCount = 1,
-				Swapchains = swapChains,
-				ImageIndices = new uint[] { imageIndex }
-			};
-
-			presentQueue.PresentKHR(presentInfo);
-			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
+					RecreateSwapChain();
+				else
+					throw e;
+			}
 		}
 		#endregion
 		
@@ -161,11 +184,14 @@ namespace Meteora.View
 			if (capabilities.CurrentExtent.Width != uint.MaxValue)
 				return capabilities.CurrentExtent;
 			else
+			{
+				
 				return new Extent2D
 				{
-					Height = Math.Max(capabilities.MinImageExtent.Height, capabilities.MaxImageExtent.Height),
-					Width = Math.Max(capabilities.MinImageExtent.Width, capabilities.MaxImageExtent.Width)
+					Height = (uint)data.control.Height,
+					Width = (uint)data.control.Width
 				};
+			}
 		}
 
 		protected void CreateSwapChain()
@@ -207,6 +233,36 @@ namespace Meteora.View
 
 			images = device.GetSwapchainImagesKHR(swapchain);
 			bufferSize = imageCount;
+		}
+
+		protected void CleanupSwapChain()
+		{
+			for (int i = 0; i < bufferSize; i++)
+				device.DestroyFramebuffer(framebuffers[i]);
+
+			device.FreeCommandBuffers(commandPool, commandBuffers);
+			device.DestroyPipeline(graphicsPipeline);
+			device.DestroyPipelineLayout(pipelineLayout);
+			device.DestroyRenderPass(renderPass);
+
+			for (int i = 0; i < bufferSize; i++)
+				device.DestroyImageView(imageViews[i]);
+
+			device.DestroySwapchainKHR(swapchain);
+		}
+
+		protected void RecreateSwapChain()
+		{ 
+			device.WaitIdle();
+
+			CleanupSwapChain();
+
+			CreateSwapChain();
+			CreateImageViews();
+			CreateRenderPass();
+			CreateGraphicsPipeline();
+			CreateFrameBuffers();
+			CreateCommandBuffers();
 		}
 		#endregion
 
@@ -554,6 +610,7 @@ namespace Meteora.View
 				if (disposing)
 				{
 					device.WaitIdle();
+					CleanupSwapChain();
 					for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 					{
 						device.DestroySemaphore(imageAvailableSemaphore[i]);
@@ -561,16 +618,10 @@ namespace Meteora.View
 						device.DestroyFence(inflightFences[i]);
 					}
 					device.DestroyCommandPool(commandPool);
-					device.DestroyPipeline(graphicsPipeline);
-					device.DestroyPipelineLayout(pipelineLayout);
-					device.DestroyRenderPass(renderPass);
-					for (int i = 0; i < bufferSize; i++)
-					{
-						device.DestroyFramebuffer(framebuffers[i]);
-						device.DestroyImageView(imageViews[i]);
-					}
-					device.DestroySwapchainKHR(swapchain);
 					device.Destroy();
+					data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
+					data.instance.DestroySurfaceKHR(data.surface);
+					data.instance.Destroy();
 				}
 				disposedValue = true;
 			}
