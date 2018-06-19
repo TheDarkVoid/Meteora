@@ -20,6 +20,7 @@ namespace Meteora.View
 
 		public bool initialized;
 		public bool running;
+		public bool render = true;
 		public Device device;
 
 		protected InstanceCreateData data;
@@ -43,13 +44,11 @@ namespace Meteora.View
 		protected int currentFrame = 0;
 		protected Dispatcher dispatcher;
 
-
 		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
 		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
 		private readonly CommandBuffer[] renderCommandBuffers = new CommandBuffer[1];
 		private readonly SwapchainKhr[] renderSwapchains = new SwapchainKhr[1];
 		private readonly uint[] renderImageIndices = new uint[1];
-
 		private SubmitInfo submitInfo;
 		private PresentInfoKhr presentInfo;
 		private PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
@@ -62,6 +61,8 @@ namespace Meteora.View
 		public virtual void DrawFrame()
 		{
 			if (!initialized)
+				return;
+			if (!render)
 				return;
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
@@ -89,14 +90,22 @@ namespace Meteora.View
 				presentInfo.WaitSemaphores = signalSemaphores;
 
 				presentQueue.PresentKHR(presentInfo);
-				currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 			}catch(ResultException e)
 			{
 				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
-					dispatcher.Invoke(RecreateSwapChain);
+				{
+					if(render)
+					{
+						render = false;
+						dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
+						device.ResetFence(inflightFences[currentFrame]);
+						return;
+					}
+				}
 				else
 					throw e;
 			}
+			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 		#endregion
 		
@@ -264,7 +273,9 @@ namespace Meteora.View
 		}
 
 		protected void RecreateSwapChain()
-		{ 
+		{
+			if (render)
+				return;
 			device.WaitIdle();
 
 			CleanupSwapChain();
@@ -275,6 +286,8 @@ namespace Meteora.View
 			CreateGraphicsPipeline();
 			CreateFrameBuffers();
 			CreateCommandBuffers();
+
+			render = true;
 		}
 		#endregion
 
