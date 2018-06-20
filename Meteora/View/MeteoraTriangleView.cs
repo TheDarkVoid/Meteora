@@ -14,9 +14,11 @@ namespace Meteora.View
 	{
 		private Vertex[] vertices = new Vertex[]
 		{
-			new Vertex(new float[] {  0.0f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
-			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
 			new Vertex(new float[] { -0.5f,  0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
+			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
+			new Vertex(new float[] {  0.5f,  -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
 		};
 
 		public override void Initialize(InstanceCreateData data)
@@ -87,7 +89,8 @@ namespace Meteora.View
 
 				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
 
-				commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
+				commandBuffers[i].CmdDraw(3, 1, 0, 0);
+				commandBuffers[i].CmdDraw(3, 1, 2, 0);
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
 			}
