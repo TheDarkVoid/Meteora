@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using Meteora.Data;
@@ -11,10 +12,12 @@ namespace Meteora.View
 {
 	public class MeteoraTriangleView : MeteoraViewBase
 	{
-		public override void DrawFrame()
+		private Vertex[] vertices = new Vertex[]
 		{
-			base.DrawFrame();
-		}
+			new Vertex(new float[] {  0.0f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
+			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] { -0.5f,  0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
+		};
 
 		public override void Initialize(InstanceCreateData data)
 		{
@@ -49,7 +52,7 @@ namespace Meteora.View
 			return shaderStages;
 		}
 
-		protected override void InitCommandBuffer()
+		protected override void InitCommandBuffers()
 		{
 			for (int i = 0; i < bufferSize; i++)
 			{
@@ -61,7 +64,7 @@ namespace Meteora.View
 
 				var clearColor = new ClearValue
 				{
-					Color = new ClearColorValue(new uint[] { 255, 0, 100, 255 })
+					Color = new ClearColorValue(new float[] { 25/255f, 0.0f, 10/255f, 1.0f } )
 				};
 				var renderPassInfo = new RenderPassBeginInfo
 				{
@@ -81,10 +84,57 @@ namespace Meteora.View
 				};
 				commandBuffers[i].CmdBeginRenderPass(renderPassInfo, SubpassContents.Inline);
 				commandBuffers[i].CmdBindPipeline(PipelineBindPoint.Graphics, graphicsPipeline);
-				commandBuffers[i].CmdDraw(3, 1, 0, 0);
+
+				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
+
+				commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
 			}
+		}
+
+		protected override PipelineVertexInputStateCreateInfo GetVertexInputInfo()
+		{
+			var bindingDesc = Vertex.GetBindingDescription();
+			var attrDesc = Vertex.GetAttributeDescriptions();
+
+			var vertexInputInfo = new PipelineVertexInputStateCreateInfo
+			{
+				VertexAttributeDescriptionCount = (uint)bindingDesc.Length,
+				VertexBindingDescriptionCount = (uint)attrDesc.Length,
+				VertexBindingDescriptions = bindingDesc,
+				VertexAttributeDescriptions = attrDesc
+			};
+
+			return vertexInputInfo;
+		}
+
+		protected override void CreateVertexBuffer()
+		{
+			var bufferInfo = new BufferCreateInfo
+			{
+				Size = Vertex.SIZE * vertices.Length,
+				Usage = BufferUsageFlags.VertexBuffer,
+				SharingMode = SharingMode.Exclusive
+			};
+
+			vertexBuffer = device.CreateBuffer(bufferInfo);
+
+			var memRequirements = device.GetBufferMemoryRequirements(vertexBuffer);
+
+			var allocInfo = new MemoryAllocateInfo
+			{
+				AllocationSize = memRequirements.Size,
+				MemoryTypeIndex = FindMemoryType(memRequirements.MemoryTypeBits, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent)
+			};
+
+			vertexBufferMemory = device.AllocateMemory(allocInfo);
+
+			var memPtr = device.MapMemory(vertexBufferMemory, 0, bufferInfo.Size);
+			var data = vertices.SelectMany(v => v.Data).ToArray();
+			Marshal.Copy(data, 0, memPtr, data.Length);
+			device.UnmapMemory(vertexBufferMemory);
+			device.BindBufferMemory(vertexBuffer, vertexBufferMemory, 0);
 		}
 	}
 }

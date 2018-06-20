@@ -21,9 +21,13 @@ namespace Meteora.View
 			this.StartPosition = FormStartPosition.CenterScreen;
 			//this.SizeGripStyle = SizeGripStyle.Hide;
 			this.FormBorderStyle = FormBorderStyle.Fixed3D;
+			this.MaximizeBox = false;
+			this.MaximumSize = this.Size;
 			this.Name = title;
 			this.Text = title;
-			this.Controls.Add(new MeteoraControl(view, title) { Dock = DockStyle.Fill });
+			MeteoraControl control;
+			this.Controls.Add(control = new MeteoraControl(view, title) { Dock = DockStyle.Fill });
+			FormClosing += (a, b) => control.OnClosing();
 		}
 	}
 }

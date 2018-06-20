@@ -173,7 +173,7 @@ namespace Meteora
 			mainLoop.Start();
 		}
 
-		private void OnClosing()
+		public void OnClosing()
 		{
 			data.view.running = false;
 			mainLoop.Join();
@@ -190,7 +190,6 @@ namespace Meteora
 
 		protected override void Dispose(bool disposing)
 		{
-			OnClosing();
 			data.view.Dispose();
 			base.Dispose(disposing);
 		}

@@ -36,6 +36,8 @@ namespace Meteora.View
 		protected Pipeline graphicsPipeline;
 		protected Framebuffer[] framebuffers;
 		protected CommandPool commandPool;
+		protected Vulkan.Buffer vertexBuffer;
+		protected DeviceMemory vertexBufferMemory;
 		protected CommandBuffer[] commandBuffers;
 		protected Semaphore[] imageAvailableSemaphore;
 		protected Semaphore[] renderFinishedSemaphore;
@@ -43,6 +45,7 @@ namespace Meteora.View
 		protected Fence[] inflightFences;
 		protected int currentFrame = 0;
 		protected Dispatcher dispatcher;
+
 
 		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
 		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
@@ -68,43 +71,43 @@ namespace Meteora.View
 			device.ResetFence(inflightFences[currentFrame]);
 			if(!running)
 				return;
-			if(DateTime.Now >= nextSecond )
+			if(DateTime.Now >= nextSecond)
 				data.control.ParentForm.Invoke(FPSCounter);
 			frameCount++;
-			try
-			{
-				var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
-				waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
-				signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
+			//try
+			//{
+			var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
+			waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
+			signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
 
-				submitInfo.WaitSemaphores = waitSemaphores;
-				submitInfo.SignalSemaphores = signalSemaphores;
-				renderCommandBuffers[0] = commandBuffers[imageIndex];
-				submitInfo.CommandBuffers = renderCommandBuffers;
+			submitInfo.WaitSemaphores = waitSemaphores;
+			submitInfo.SignalSemaphores = signalSemaphores;
+			renderCommandBuffers[0] = commandBuffers[imageIndex];
+			submitInfo.CommandBuffers = renderCommandBuffers;
 
-				graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
-				renderSwapchains[0] = swapchain;
-				presentInfo.Swapchains = renderSwapchains;
-				renderImageIndices[0] = imageIndex;
-				presentInfo.ImageIndices = renderImageIndices;
-				presentInfo.WaitSemaphores = signalSemaphores;
+			graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
+			renderSwapchains[0] = swapchain;
+			presentInfo.Swapchains = renderSwapchains;
+			renderImageIndices[0] = imageIndex;
+			presentInfo.ImageIndices = renderImageIndices;
+			presentInfo.WaitSemaphores = signalSemaphores;
 
-				presentQueue.PresentKHR(presentInfo);
-			}catch(ResultException e)
-			{
-				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
-				{
-					if(render)
-					{
-						render = false;
-						dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
-						device.ResetFence(inflightFences[currentFrame]);
-						return;
-					}
-				}
-				else
-					throw e;
-			}
+			presentQueue.PresentKHR(presentInfo);
+			//}catch(ResultException e)
+			//{
+				//if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
+				//{
+					//if(render)
+					//{
+						//render = false;
+						//dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
+						//device.ResetFence(inflightFences[currentFrame]);
+						//return;
+					//}
+				//}
+				//else
+					//throw e;
+			//}
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 		#endregion
@@ -143,6 +146,7 @@ namespace Meteora.View
 			CreateGraphicsPipeline();
 			CreateFrameBuffers();
 			CreateCommandPool();
+			CreateVertexBuffer();
 			CreateCommandBuffers();
 			CreateSyncObjects();
 
@@ -328,11 +332,7 @@ namespace Meteora.View
 		{
 			var shaderStages = CreateShaderStages();
 
-			var vertexInputInfo = new PipelineVertexInputStateCreateInfo
-			{
-				VertexAttributeDescriptionCount = 0,
-				VertexBindingDescriptionCount = 0
-			};
+			var vertexInputInfo = GetVertexInputInfo();
 
 			var inputAssembly = new PipelineInputAssemblyStateCreateInfo
 			{
@@ -440,6 +440,16 @@ namespace Meteora.View
 				device.DestroyShaderModule(stage.Module);
 		}
 
+		protected virtual PipelineVertexInputStateCreateInfo GetVertexInputInfo()
+		{
+			var vertexInputInfo = new PipelineVertexInputStateCreateInfo
+			{
+				VertexAttributeDescriptionCount = 0,
+				VertexBindingDescriptionCount = 0
+			};
+			return vertexInputInfo;
+		}
+
 		protected virtual PipelineShaderStageCreateInfo[] CreateShaderStages()
 		{
 			return null;
@@ -542,6 +552,24 @@ namespace Meteora.View
 		}
 		#endregion
 
+		#region Vertex Buffer
+		protected virtual void CreateVertexBuffer()
+		{
+			
+		}
+
+		protected virtual uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
+		{
+			var memProperties = data.physicalDevice.GetMemoryProperties();
+			for (uint i = 0; i < memProperties.MemoryTypeCount; i++)
+			{
+				if (((typeFilter >> (int)i) & 1) == 1 && (memProperties.MemoryTypes[i].PropertyFlags & properties) == properties)
+					return i;
+			}
+			throw new Exception("Unable to find suiable memory type");
+		}
+		#endregion
+
 		#region Command Buffers
 		protected void CreateCommandBuffers()
 		{
@@ -553,10 +581,10 @@ namespace Meteora.View
 				CommandBufferCount = bufferSize
 			};
 			commandBuffers = device.AllocateCommandBuffers(allocInfo);
-			InitCommandBuffer();
+			InitCommandBuffers();
 		}
 
-		protected virtual void InitCommandBuffer()
+		protected virtual void InitCommandBuffers()
 		{
 
 		}
@@ -596,6 +624,8 @@ namespace Meteora.View
 				//Unmanaged
 				device.WaitIdle();
 				CleanupSwapChain();
+				device.DestroyBuffer(vertexBuffer);
+				device.FreeMemory(vertexBufferMemory);
 				for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
 				{
 					device.DestroySemaphore(imageAvailableSemaphore[i]);
