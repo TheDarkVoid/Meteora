@@ -69,9 +69,9 @@ namespace Meteora.View
 				return;
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
-			if(!running)
+			if (!running)
 				return;
-			if(DateTime.Now >= nextSecond)
+			if (DateTime.Now >= nextSecond)
 				data.control.ParentForm.Invoke(FPSCounter);
 			frameCount++;
 			//try
@@ -95,23 +95,23 @@ namespace Meteora.View
 			presentQueue.PresentKHR(presentInfo);
 			//}catch(ResultException e)
 			//{
-				//if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
-				//{
-					//if(render)
-					//{
-						//render = false;
-						//dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
-						//device.ResetFence(inflightFences[currentFrame]);
-						//return;
-					//}
-				//}
-				//else
-					//throw e;
+			//if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
+			//{
+			//if(render)
+			//{
+			//render = false;
+			//dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
+			//device.ResetFence(inflightFences[currentFrame]);
+			//return;
+			//}
+			//}
+			//else
+			//throw e;
 			//}
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 		#endregion
-		
+
 
 		#region Init
 		public virtual void Initialize(InstanceCreateData data)
@@ -210,7 +210,7 @@ namespace Meteora.View
 				return capabilities.CurrentExtent;
 			else
 			{
-				
+
 				return new Extent2D
 				{
 					Height = (uint)data.control.Height,
@@ -436,7 +436,7 @@ namespace Meteora.View
 
 			if (shaderStages == null)
 				return;
-			foreach(var stage in shaderStages)
+			foreach (var stage in shaderStages)
 				device.DestroyShaderModule(stage.Module);
 		}
 
@@ -555,7 +555,7 @@ namespace Meteora.View
 		#region Vertex Buffer
 		protected virtual void CreateVertexBuffer()
 		{
-			
+
 		}
 
 		protected virtual uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
@@ -567,6 +567,72 @@ namespace Meteora.View
 					return i;
 			}
 			throw new Exception("Unable to find suiable memory type");
+		}
+		#endregion
+
+		#region Create Buffer
+		public (Vulkan.Buffer buffer, DeviceMemory memory) CreateBuffer<T>(T[] data)
+		{
+			int size = 0;
+			switch(data)
+			{
+				case float[] _:
+					size = sizeof(float) * data.Length;
+					break;
+				case double[] _:
+					size = sizeof(double) * data.Length;
+					break;
+				case int[] _:
+					size = sizeof(int) * data.Length;
+					break;
+				case long[] _:
+					size = sizeof(long) * data.Length;
+					break;
+				default:
+					throw new Exception("Only float, double, int, and long are supported");
+			}
+
+			var bufferInfo = new BufferCreateInfo
+			{
+				Size = size,
+				Usage = BufferUsageFlags.VertexBuffer,
+				SharingMode = SharingMode.Exclusive
+			};
+
+			var buffer = device.CreateBuffer(bufferInfo);
+
+			var memRequirements = device.GetBufferMemoryRequirements(buffer);
+
+			var allocInfo = new MemoryAllocateInfo
+			{
+				AllocationSize = memRequirements.Size,
+				MemoryTypeIndex = FindMemoryType(memRequirements.MemoryTypeBits, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent)
+			};
+
+			var memory = device.AllocateMemory(allocInfo);
+
+			device.BindBufferMemory(buffer, memory, 0);
+			var memPtr = device.MapMemory(memory, 0, bufferInfo.Size);
+			switch(data)
+			{
+				case float[] bufferData:
+					Marshal.Copy(bufferData, 0, memPtr, data.Length);
+					break;
+				case double[] bufferData:
+					Marshal.Copy(bufferData, 0, memPtr, data.Length);
+					break;
+				case int[] bufferData:
+					Marshal.Copy(bufferData, 0, memPtr, data.Length);
+					break;
+				case long[] bufferData:
+					Marshal.Copy(bufferData, 0, memPtr, data.Length);
+					break;
+				default:
+					throw new Exception("Only float, double, int, and long are supported");
+			}
+			device.UnmapMemory(memory);
+
+			return (buffer, memory);
 		}
 		#endregion
 

@@ -109,32 +109,6 @@ namespace Meteora.View
 			return vertexInputInfo;
 		}
 
-		protected override void CreateVertexBuffer()
-		{
-			var bufferInfo = new BufferCreateInfo
-			{
-				Size = Vertex.SIZE * vertices.Length,
-				Usage = BufferUsageFlags.VertexBuffer,
-				SharingMode = SharingMode.Exclusive
-			};
-
-			vertexBuffer = device.CreateBuffer(bufferInfo);
-
-			var memRequirements = device.GetBufferMemoryRequirements(vertexBuffer);
-
-			var allocInfo = new MemoryAllocateInfo
-			{
-				AllocationSize = memRequirements.Size,
-				MemoryTypeIndex = FindMemoryType(memRequirements.MemoryTypeBits, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent)
-			};
-
-			vertexBufferMemory = device.AllocateMemory(allocInfo);
-
-			var memPtr = device.MapMemory(vertexBufferMemory, 0, bufferInfo.Size);
-			var data = vertices.SelectMany(v => v.Data).ToArray();
-			Marshal.Copy(data, 0, memPtr, data.Length);
-			device.UnmapMemory(vertexBufferMemory);
-			device.BindBufferMemory(vertexBuffer, vertexBufferMemory, 0);
-		}
+		protected override void CreateVertexBuffer() => (vertexBuffer, vertexBufferMemory) = CreateBuffer(vertices.SelectMany(v => v.Data).ToArray());
 	}
 }
