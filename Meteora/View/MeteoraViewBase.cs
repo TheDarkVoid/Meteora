@@ -74,40 +74,42 @@ namespace Meteora.View
 			if (DateTime.Now >= nextSecond)
 				data.control.ParentForm.Invoke(FPSCounter);
 			frameCount++;
-			//try
-			//{
-			var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
-			waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
-			signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
+			try
+			{
+				var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
+				waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
+				signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
 
-			submitInfo.WaitSemaphores = waitSemaphores;
-			submitInfo.SignalSemaphores = signalSemaphores;
-			renderCommandBuffers[0] = commandBuffers[imageIndex];
-			submitInfo.CommandBuffers = renderCommandBuffers;
+				submitInfo.WaitSemaphores = waitSemaphores;
+				submitInfo.SignalSemaphores = signalSemaphores;
+				renderCommandBuffers[0] = commandBuffers[imageIndex];
+				submitInfo.CommandBuffers = renderCommandBuffers;
 
-			graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
-			renderSwapchains[0] = swapchain;
-			presentInfo.Swapchains = renderSwapchains;
-			renderImageIndices[0] = imageIndex;
-			presentInfo.ImageIndices = renderImageIndices;
-			presentInfo.WaitSemaphores = signalSemaphores;
+				graphicsQueue.Submit(submitInfo, inflightFences[currentFrame]);
+				renderSwapchains[0] = swapchain;
+				presentInfo.Swapchains = renderSwapchains;
+				renderImageIndices[0] = imageIndex;
+				presentInfo.ImageIndices = renderImageIndices;
+				presentInfo.WaitSemaphores = signalSemaphores;
 
-			presentQueue.PresentKHR(presentInfo);
-			//}catch(ResultException e)
-			//{
-			//if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
-			//{
-			//if(render)
-			//{
-			//render = false;
-			//dispatcher.BeginInvoke(new System.Windows.Forms.MethodInvoker(RecreateSwapChain));
-			//device.ResetFence(inflightFences[currentFrame]);
-			//return;
-			//}
-			//}
-			//else
-			//throw e;
-			//}
+				presentQueue.PresentKHR(presentInfo);
+			}
+			catch (ResultException e)
+			{
+				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
+				{
+					if (render)
+					{
+						render = false;
+						Console.WriteLine("Resize");
+						RecreateSwapChain();
+						//device.ResetFence(inflightFences[currentFrame]);
+						return;
+					}
+				}
+				else
+					throw e;
+			}
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 		#endregion

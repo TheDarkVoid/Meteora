@@ -15,9 +15,21 @@ class Program
 	static void Main(string[] args)
 	{
 		Application.EnableVisualStyles();
-		using (MeteoraWindow gameWindow = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080))
+		MeteoraWindow game = null;
+		var thread = new Thread(() =>
 		{
-			Application.Run(gameWindow);
+			game = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080);
+			Application.Run(game);
+			game.Dispose();
+		});
+		thread.Start();
+		while (true)
+		{
+			if (game != null)
+				break;
 		}
+		game.Init();
+		game.DoMainLoop();
+		thread.Join();
 	}
 }

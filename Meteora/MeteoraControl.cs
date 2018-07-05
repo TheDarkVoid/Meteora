@@ -18,6 +18,7 @@ namespace Meteora
 
 		public InstanceCreateData data;
 		private Thread mainLoop;
+		private bool _firstPaint = false;
 
 		public MeteoraControl(MeteoraViewBase view, string appName)
 		{
@@ -30,7 +31,7 @@ namespace Meteora
 				EngineVersion = Vulkan.Version.Make(0, 0, 1),
 				ApiVersion = Vulkan.Version.Make(1, 0, 0)
 			};
-			data.instance = CreateInstance(appInfo);
+			data.appInfo = appInfo;
 			data.view = view;
 			data.appName = appName;
 			data.control = this;
@@ -42,7 +43,7 @@ namespace Meteora
 			//Ensure Engine Info
 			appInfo.EngineName = ENGINE_NAME;
 			appInfo.EngineVersion = ENGINE_VERSION;
-			data.instance = CreateInstance(appInfo);
+			data.appInfo = appInfo;
 			data.view = view;
 		}
 
@@ -96,13 +97,17 @@ namespace Meteora
 		}
 #endif
 
-		protected override void OnLoad(EventArgs e)
+		public virtual void Init(IntPtr handle)
 		{
-			base.OnLoad(e);
-
+			while(true)
+			{
+				if (_firstPaint)
+					break;
+			}
+			data.instance = CreateInstance(data.appInfo);
 			data.surface = data.instance.CreateWin32SurfaceKHR(new Win32SurfaceCreateInfoKhr
 			{
-				Hwnd = Handle,
+				Hwnd = handle,
 				Hinstance = Process.GetCurrentProcess().Handle
 			});
 
@@ -163,7 +168,8 @@ namespace Meteora
 		protected override void OnPaint(PaintEventArgs e)
 		{
 			base.OnPaint(e);
-			StartMainLoop();
+			_firstPaint = true;
+			//StartMainLoop();
 		}
 
 		private void StartMainLoop()
@@ -176,7 +182,7 @@ namespace Meteora
 		public void OnClosing()
 		{
 			data.view.running = false;
-			mainLoop.Join();
+			//mainLoop.Join();
 			data.view.device.WaitIdle();
 		}
 

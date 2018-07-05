@@ -25,5 +25,7 @@ namespace Meteora.Data
 		public Instance.DebugReportCallback debugCallbackDelegate;
 		public MeteoraControl control;
 		public string appName;
+		public ApplicationInfo appInfo;
+		public IntPtr handle;
 	}
 }
