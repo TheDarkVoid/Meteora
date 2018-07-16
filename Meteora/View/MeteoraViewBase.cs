@@ -683,6 +683,11 @@ namespace Meteora.View
 
 		protected virtual void Dispose(bool disposing)
 		{
+			if(!initialized)
+			{
+				disposedValue = false;
+				return;
+			}
 			if (!disposedValue)
 			{
 				if (disposing)

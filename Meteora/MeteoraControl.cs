@@ -169,7 +169,6 @@ namespace Meteora
 		{
 			base.OnPaint(e);
 			_firstPaint = true;
-			//StartMainLoop();
 		}
 
 		private void StartMainLoop()
@@ -181,9 +180,9 @@ namespace Meteora
 
 		public void OnClosing()
 		{
+
 			data.view.running = false;
-			//mainLoop.Join();
-			data.view.device.WaitIdle();
+			//data.view.device.WaitIdle();
 		}
 
 		public void MainLoop()
