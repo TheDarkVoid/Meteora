@@ -13,30 +13,21 @@ using System.IO;
 
 class Program
 {
-	private static MeteoraWindow game = null; //Form
-	private static object gLock = new object();
 	static void Main(string[] args)
 	{
+		MeteoraWindow game = null; //Form
+		var gameWindowCreate = new AutoResetEvent(false);
 		var thread = new Thread(() =>
 		{
-			lock(gLock)
-			{
-				Application.EnableVisualStyles();
-				game = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080);
-			}
+			Application.EnableVisualStyles();
+			game = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080);
+			gameWindowCreate.Set();
 			Application.Run(game);
 			game.Dispose();
 		});
 		Console.Write("Creating window... ");
 		thread.Start();
-		while (true)
-		{
-			lock(gLock)
-			{
-				if (game != null)
-					break;
-			}
-		}
+		gameWindowCreate.WaitOne();
 		Console.WriteLine("Done!");
 		Console.Write("Initializing... ");
 		game.Init();
