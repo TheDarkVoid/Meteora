@@ -14,17 +14,20 @@ namespace Meteora.View
 	{
 		private Vertex[] vertices = new Vertex[]
 		{
-			new Vertex(new float[] { -0.5f,  0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
-			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
+			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] {  0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
 			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
-			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
-			new Vertex(new float[] {  0.5f,  -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
 		};
 
-		public override void Initialize(InstanceCreateData data)
+		private readonly int[] indices = new[]
 		{
-			base.Initialize(data);
-		}
+			0, 1, 2
+		};
+
+		protected Vulkan.Buffer vertexBuffer;
+		protected DeviceMemory vertexBufferMemory;
+		protected Vulkan.Buffer indexBuffer;
+		protected DeviceMemory indexBufferMemory;
 
 		protected override PipelineShaderStageCreateInfo[] CreateShaderStages()
 		{
@@ -88,9 +91,11 @@ namespace Meteora.View
 				commandBuffers[i].CmdBindPipeline(PipelineBindPoint.Graphics, graphicsPipeline);
 
 				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
+				commandBuffers[i].CmdBindIndexBuffer(indexBuffer, 0, IndexType.Uint16);
 
-				commandBuffers[i].CmdDraw(3, 1, 0, 0);
-				commandBuffers[i].CmdDraw(3, 1, 2, 0);
+				//commandBuffers[i].CmdDrawIndexed((uint)indices.Length, 1, 0, 0, 0);
+				commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
+
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
 			}
@@ -112,6 +117,45 @@ namespace Meteora.View
 			return vertexInputInfo;
 		}
 
-		protected override void CreateVertexBuffer() => (vertexBuffer, vertexBufferMemory) = CreateBuffer(vertices.SelectMany(v => v.Data).ToArray());
+		protected override void CreateVertexBuffer()
+		{
+			var vtx = vertices.SelectMany(v => v.Data).ToArray();
+			var bufferSize = vertices.Length * Vertex.SIZE;
+
+
+			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(vtx, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
+
+			(vertexBuffer, vertexBufferMemory) = CreateBuffer(bufferSize, BufferUsageFlags.TransferDst | BufferUsageFlags.VertexBuffer, MemoryPropertyFlags.DeviceLocal);
+
+			CopyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
+		}
+
+		protected override void CreateIndexBuffer()
+		{
+			var size = sizeof(int) * indices.Length;
+
+			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(indices, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
+
+			(indexBuffer, indexBufferMemory) = CreateBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal);
+
+			CopyBuffer(stagingBuffer, indexBuffer, size);
+
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			device.WaitIdle();
+			CleanupSwapChain();
+			device.DestroyBuffer(vertexBuffer);
+			device.DestroyBuffer(indexBuffer);
+			device.FreeMemory(vertexBufferMemory);
+			device.FreeMemory(indexBufferMemory);
+			base.Dispose(disposing);
+		}
 	}
 }
