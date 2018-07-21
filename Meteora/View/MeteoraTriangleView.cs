@@ -17,11 +17,12 @@ namespace Meteora.View
 			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
 			new Vertex(new float[] {  0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
 			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] { -0.5f, 0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
 		};
 
 		private readonly int[] indices = new[]
 		{
-			0, 1, 2
+			2, 1, 0, 2, 0, 3
 		};
 
 		protected Vulkan.Buffer vertexBuffer;
@@ -93,8 +94,8 @@ namespace Meteora.View
 				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
 				commandBuffers[i].CmdBindIndexBuffer(indexBuffer, 0, IndexType.Uint16);
 
-				//commandBuffers[i].CmdDrawIndexed((uint)indices.Length, 1, 0, 0, 0);
-				commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
+				commandBuffers[i].CmdDrawIndexed((uint)indices.Length, 1, 0, 0, 0);
+				//commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
 
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
@@ -147,15 +148,13 @@ namespace Meteora.View
 			device.FreeMemory(stagingBufferMemory);
 		}
 
-		protected override void Dispose(bool disposing)
+		public override void CleanupBuffers()
 		{
-			device.WaitIdle();
-			CleanupSwapChain();
+			base.CleanupBuffers();
 			device.DestroyBuffer(vertexBuffer);
 			device.DestroyBuffer(indexBuffer);
 			device.FreeMemory(vertexBufferMemory);
 			device.FreeMemory(indexBufferMemory);
-			base.Dispose(disposing);
 		}
 	}
 }

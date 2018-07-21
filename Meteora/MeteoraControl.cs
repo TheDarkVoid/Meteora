@@ -19,6 +19,7 @@ namespace Meteora
 		public InstanceCreateData data;
 		private Thread mainLoop;
 		private bool _firstPaint = false;
+		private AutoResetEvent _mainLoopComplete;
 
 		public MeteoraControl(MeteoraViewBase view, string appName)
 		{
@@ -36,6 +37,7 @@ namespace Meteora
 			data.appName = appName;
 			data.control = this;
 			this.BackColor = System.Drawing.Color.FromArgb(25, 0, 10);
+			_mainLoopComplete = new AutoResetEvent(false);
 		}
 
 		public MeteoraControl(MeteoraViewBase view, ApplicationInfo appInfo)
@@ -180,22 +182,23 @@ namespace Meteora
 
 		public void OnClosing()
 		{
-
-			data.view.running = false;
-			//data.view.device.WaitIdle();
+			data.view.Running = false;
+			data.view.device.WaitIdle();
+			_mainLoopComplete.WaitOne();
+			data.view.Dispose();
 		}
 
 		public void MainLoop()
 		{
-			while (data.view.running)
+			while (data.view.Running)
 			{
 				data.view.DrawFrame();
 			}
+			_mainLoopComplete.Set();
 		}
 
 		protected override void Dispose(bool disposing)
 		{
-			data.view.Dispose();
 			base.Dispose(disposing);
 		}
 	}

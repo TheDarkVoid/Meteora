@@ -58,6 +58,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Data\CreateData.cs" />
+    <Compile Include="Data\GameCreateInfo.cs" />
     <Compile Include="Data\QueueFamilyIndices.cs" />
     <Compile Include="Data\Vector.cs" />
     <Compile Include="Data\Vertex.cs" />
@@ -67,6 +68,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="View\IMeteoraView.cs" />
+    <Compile Include="View\MeteoraGame.cs" />
     <Compile Include="View\MeteoraTriangleView.cs" />
     <Compile Include="View\MeteoraViewBase.cs" />
     <Compile Include="View\MeteoraWindow.cs">

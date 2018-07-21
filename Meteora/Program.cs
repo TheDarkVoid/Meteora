@@ -10,30 +10,17 @@ using Meteora.View;
 using Vulkan;
 using System.Runtime.InteropServices;
 using System.IO;
+using Meteora.Data;
 
 class Program
 {
 	static void Main(string[] args)
 	{
-		MeteoraWindow game = null; //Form
-		var gameWindowCreate = new AutoResetEvent(false);
-		var thread = new Thread(() =>
+		var game = new MeteoraGame(new GameCreateInfo
 		{
-			Application.EnableVisualStyles();
-			game = new MeteoraWindow(new MeteoraTriangleView(), 1920, 1080);
-			gameWindowCreate.Set();
-			Application.Run(game);
-			game.Dispose();
+			Height = 1080,
+			Width = 1920
 		});
-		Console.Write("Creating window... ");
-		thread.Start();
-		gameWindowCreate.WaitOne();
-		Console.WriteLine("Done!");
-		Console.Write("Initializing... ");
-		game.Init();
-		Console.WriteLine("Done!");
-		Console.WriteLine("Running Main Loop... ");
-		game.DoMainLoop();
-		thread.Join();
+		game.Start();
 	}
 }

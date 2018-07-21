@@ -6,41 +6,42 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Meteora.Data;
 
 namespace Meteora.View
 {
 	public class MeteoraWindow : Form
 	{
 
-		protected MeteoraControl _control;
+		public MeteoraControl control;
 		protected IntPtr _handle;
 
-		public MeteoraWindow(MeteoraViewBase view, int width = 1280, int height = 720, string title = "Meteora Window", FormBorderStyle borderStyle = FormBorderStyle.FixedSingle)
+		public MeteoraWindow(GameCreateInfo createInfo)
 		{
 			//Adjust for window border
 			//width += 20;
 			//height += 43;
-			this.Size = new Size(width, height);
+			this.Size = new Size(createInfo.Width, createInfo.Height);
 			this.StartPosition = FormStartPosition.CenterScreen;
 			this.SizeGripStyle = SizeGripStyle.Hide;
-			this.FormBorderStyle = borderStyle;
+			this.FormBorderStyle = createInfo.BorderStyle;
 			this.MaximizeBox = false;
 			this.MaximumSize = this.Size;
-			this.Name = title;
-			this.Text = title;
-			this.Controls.Add(_control = new MeteoraControl(view, title) { Dock = DockStyle.Fill });
-			_handle = _control.Handle;
-			FormClosing += (a, b) => _control.OnClosing();
+			this.Name = createInfo.Title;
+			this.Text = createInfo.Title;
+			this.Controls.Add(control = new MeteoraControl(createInfo.View, createInfo.Title) { Dock = DockStyle.Fill });
+			_handle = control.Handle;
+			FormClosing += (a, b) => control.OnClosing();
 		}
 
 		public virtual void DoMainLoop()
 		{
-			_control.MainLoop();
+			control.MainLoop();
 		}
 
 		public virtual void Init()
 		{
-			_control.Init(_handle);
+			control.Init(_handle);
 		}
 
 	}

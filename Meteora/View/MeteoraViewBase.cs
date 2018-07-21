@@ -19,7 +19,24 @@ namespace Meteora.View
 		public const int MAX_FRAMES_IN_FLIGHT = 2;
 
 		public bool initialized;
-		public bool running;
+		public object runLock = new object();
+		public bool Running
+		{
+			get
+			{
+				lock(runLock)
+				{
+					return _running;
+				}
+			}
+			set
+			{
+				lock(runLock)
+				{
+					_running = value;
+				}
+			}
+		}
 		public bool render = true;
 		public Device device;
 
@@ -42,8 +59,6 @@ namespace Meteora.View
 		protected uint bufferSize;
 		protected Fence[] inflightFences;
 		protected int currentFrame = 0;
-		protected Dispatcher dispatcher;
-
 
 		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
 		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
@@ -58,6 +73,7 @@ namespace Meteora.View
 		private System.Windows.Forms.MethodInvoker FPSCounter;
 
 		private bool _swapChainActive = false;
+		private bool _running;
 
 		#region Init
 		public virtual void Initialize(InstanceCreateData data)
@@ -117,9 +133,7 @@ namespace Meteora.View
 				SwapchainCount = 1,
 			};
 
-			dispatcher = Dispatcher.CurrentDispatcher;
-
-			initialized = running = true;
+			initialized = Running = true;
 		}
 		#endregion
 
@@ -132,7 +146,7 @@ namespace Meteora.View
 				return;
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
-			if (!running)
+			if (!Running)
 				return;
 			if (DateTime.Now >= nextSecond)
 				data.control.ParentForm.Invoke(FPSCounter);
@@ -733,8 +747,34 @@ namespace Meteora.View
 		}
 		#endregion
 
+
+		public virtual void Cleanup()
+		{
+			device.WaitIdle();
+			CleanupSwapChain();
+			CleanupBuffers();
+			for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
+			{
+				device.DestroySemaphore(imageAvailableSemaphore[i]);
+				device.DestroySemaphore(renderFinishedSemaphore[i]);
+				device.DestroyFence(inflightFences[i]);
+			}
+			device.DestroyCommandPool(commandPool);
+			device.Destroy();
+#if DEBUG
+			data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
+#endif
+			data.instance.DestroySurfaceKHR(data.surface);
+			data.instance.Destroy();
+		}
+
+		public virtual void CleanupBuffers()
+		{
+
+		}
+
 		#region IDisposable Support
-		private bool disposedValue = false; // To detect redundant calls
+		protected bool disposedValue = false; // To detect redundant calls
 
 		protected virtual void Dispose(bool disposing)
 		{
@@ -750,22 +790,7 @@ namespace Meteora.View
 					//Managed
 				}
 				//Unmanaged
-				device.WaitIdle();
-				CleanupSwapChain();
-				
-				for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
-				{
-					device.DestroySemaphore(imageAvailableSemaphore[i]);
-					device.DestroySemaphore(renderFinishedSemaphore[i]);
-					device.DestroyFence(inflightFences[i]);
-				}
-				device.DestroyCommandPool(commandPool);
-				device.Destroy();
-#if DEBUG
-				data.instance.DestroyDebugReportCallbackEXT(data.debugCallback);
-#endif
-				data.instance.DestroySurfaceKHR(data.surface);
-				data.instance.Destroy();
+				Cleanup();
 				disposedValue = true;
 			}
 		}
@@ -779,7 +804,7 @@ namespace Meteora.View
 		// This code added to correctly implement the disposable pattern.
 		public void Dispose()
 		{
-			running = false;
+			Running = false;
 			Dispose(true);
 			GC.SuppressFinalize(this);
 		}
