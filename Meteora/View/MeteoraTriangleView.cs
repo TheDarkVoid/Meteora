@@ -16,19 +16,22 @@ namespace Meteora.View
 		{
 			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
 			new Vertex(new float[] {  0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
-			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 0.0f, 1.0f , 1.0f }),
+			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
 			new Vertex(new float[] { -0.5f, 0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
 		};
 
 		private readonly int[] indices = new[]
 		{
-			2, 1, 0, 2, 0, 3
+			0, 1, 2, 2, 3, 0
 		};
 
+		protected DescriptorSetLayout descriptorSetLayout;
 		protected Vulkan.Buffer vertexBuffer;
 		protected DeviceMemory vertexBufferMemory;
 		protected Vulkan.Buffer indexBuffer;
 		protected DeviceMemory indexBufferMemory;
+		protected Vulkan.Buffer[] uniformBuffers;
+		protected DeviceMemory[] unifromBuffersMemory;
 
 		protected override PipelineShaderStageCreateInfo[] CreateShaderStages()
 		{
@@ -56,6 +59,13 @@ namespace Meteora.View
 			};
 
 			return shaderStages;
+		}
+
+		public override void Draw(uint curImage)
+		{
+			var start = DateTime.Now;
+
+			var deltaTime = (DateTime.Now - start).TotalSeconds;
 		}
 
 		protected override void InitCommandBuffers()
@@ -92,10 +102,9 @@ namespace Meteora.View
 				commandBuffers[i].CmdBindPipeline(PipelineBindPoint.Graphics, graphicsPipeline);
 
 				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
-				commandBuffers[i].CmdBindIndexBuffer(indexBuffer, 0, IndexType.Uint16);
+				commandBuffers[i].CmdBindIndexBuffer(indexBuffer, 0, IndexType.Uint32);
 
 				commandBuffers[i].CmdDrawIndexed((uint)indices.Length, 1, 0, 0, 0);
-				//commandBuffers[i].CmdDraw((uint)vertices.Length, 1, 0, 0);
 
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
@@ -118,7 +127,14 @@ namespace Meteora.View
 			return vertexInputInfo;
 		}
 
-		protected override void CreateVertexBuffer()
+		protected override void CreateBuffers()
+		{
+			CreateVertexBuffer();
+			CreateIndexBuffer();
+			CreateUniformBuffer();
+		}
+
+		protected void CreateVertexBuffer()
 		{
 			var vtx = vertices.SelectMany(v => v.Data).ToArray();
 			var bufferSize = vertices.Length * Vertex.SIZE;
@@ -134,7 +150,7 @@ namespace Meteora.View
 			device.FreeMemory(stagingBufferMemory);
 		}
 
-		protected override void CreateIndexBuffer()
+		protected void CreateIndexBuffer()
 		{
 			var size = sizeof(int) * indices.Length;
 
@@ -148,9 +164,51 @@ namespace Meteora.View
 			device.FreeMemory(stagingBufferMemory);
 		}
 
+		protected void CreateUniformBuffer()
+		{
+			var size = sizeof(float) * 4 * 4 * 3;
+
+			uniformBuffers = new Vulkan.Buffer[images.Length];
+			unifromBuffersMemory = new DeviceMemory[images.Length];
+
+			for (int i = 0; i < images.Length; i++)
+			{
+				(uniformBuffers[i], unifromBuffersMemory[i]) = CreateBuffer(size, BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
+			}
+		}
+
+		protected override void CreateDescriptorSetLayout()
+		{
+			var uboLayoutBinding = new DescriptorSetLayoutBinding
+			{
+				Binding = 0,
+				DescriptorType = DescriptorType.UniformBuffer,
+				DescriptorCount = 1,
+				StageFlags = ShaderStageFlags.Vertex
+			};
+			var layoutInfo = new DescriptorSetLayoutCreateInfo
+			{
+				BindingCount = 1,
+				Bindings = new[] { uboLayoutBinding }
+			};
+			descriptorSetLayout = device.CreateDescriptorSetLayout(layoutInfo);
+		}
+
+		protected override PipelineLayoutCreateInfo GetPipelineLayoutInfo() => new PipelineLayoutCreateInfo
+		{
+			SetLayoutCount = 1,
+			SetLayouts = new[] { descriptorSetLayout }
+		};
+
 		public override void CleanupBuffers()
 		{
 			base.CleanupBuffers();
+			device.DestroyDescriptorSetLayout(descriptorSetLayout);
+			for (int i = 0; i < uniformBuffers.Length; i++)
+			{
+				device.DestroyBuffer(uniformBuffers[i]);
+				device.FreeMemory(unifromBuffersMemory[i]);
+			}
 			device.DestroyBuffer(vertexBuffer);
 			device.DestroyBuffer(indexBuffer);
 			device.FreeMemory(vertexBufferMemory);

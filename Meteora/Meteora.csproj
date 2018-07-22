@@ -60,6 +60,7 @@
     <Compile Include="Data\CreateData.cs" />
     <Compile Include="Data\GameCreateInfo.cs" />
     <Compile Include="Data\QueueFamilyIndices.cs" />
+    <Compile Include="Data\UniformBufferObject.cs" />
     <Compile Include="Data\Vector.cs" />
     <Compile Include="Data\Vertex.cs" />
     <Compile Include="MeteoraControl.cs">

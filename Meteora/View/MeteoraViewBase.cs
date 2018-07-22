@@ -39,6 +39,7 @@ namespace Meteora.View
 		}
 		public bool render = true;
 		public Device device;
+		public double FPS;
 
 		protected InstanceCreateData data;
 		protected Queue graphicsQueue;
@@ -105,19 +106,17 @@ namespace Meteora.View
 			CreateSwapChain();
 			CreateImageViews();
 			CreateRenderPass();
+			CreateDescriptorSetLayout();
 			CreateGraphicsPipeline();
 			CreateFrameBuffers();
 			CreateCommandPool();
-			CreateVertexBuffer();
-			CreateIndexBuffer();
+			CreateBuffers();
 			CreateCommandBuffers();
 			CreateSyncObjects();
 
 			FPSCounter = delegate
 			{
-				data.control.ParentForm.Text = $"{data.appName}: {Math.Round(frameCount / (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds)} FPS";
-				nextSecond = DateTime.Now.AddSeconds(1);
-				frameCount = 0;
+				data.control.ParentForm.Text = $"{data.appName}: {FPS} FPS";
 			};
 
 			submitInfo = new SubmitInfo
@@ -149,13 +148,20 @@ namespace Meteora.View
 			if (!Running)
 				return;
 			if (DateTime.Now >= nextSecond)
+			{
+				FPS = Math.Round(frameCount / (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds);
+				nextSecond = DateTime.Now.AddSeconds(1);
+				frameCount = 0;
 				data.control.ParentForm.Invoke(FPSCounter);
+			}
 			frameCount++;
 			try
 			{
 				var imageIndex = device.AcquireNextImageKHR(swapchain, ulong.MaxValue, imageAvailableSemaphore[currentFrame]);
 				waitSemaphores[0] = imageAvailableSemaphore[currentFrame];
 				signalSemaphores[0] = renderFinishedSemaphore[currentFrame];
+
+				Draw(imageIndex);
 
 				submitInfo.WaitSemaphores = waitSemaphores;
 				submitInfo.SignalSemaphores = signalSemaphores;
@@ -188,6 +194,11 @@ namespace Meteora.View
 					throw e;
 			}
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+		}
+
+		public virtual void Draw(uint curImage)
+		{
+
 		}
 		#endregion
 
@@ -346,6 +357,13 @@ namespace Meteora.View
 		}
 		#endregion
 
+		#region Descriptor Set Layout
+		protected virtual void CreateDescriptorSetLayout()
+		{
+			
+		}
+		#endregion
+
 		#region Graphics Pipeline
 		protected virtual void CreateGraphicsPipeline()
 		{
@@ -430,7 +448,7 @@ namespace Meteora.View
 				Attachments = new PipelineColorBlendAttachmentState[] { colorBlendAttachment },
 			};
 
-			var layoutInfo = new PipelineLayoutCreateInfo();
+			var layoutInfo = GetPipelineLayoutInfo();
 
 			pipelineLayout = device.CreatePipelineLayout(layoutInfo);
 
@@ -457,6 +475,11 @@ namespace Meteora.View
 				return;
 			foreach (var stage in shaderStages)
 				device.DestroyShaderModule(stage.Module);
+		}
+
+		protected virtual PipelineLayoutCreateInfo GetPipelineLayoutInfo()
+		{
+			return new PipelineLayoutCreateInfo();
 		}
 
 		protected virtual PipelineVertexInputStateCreateInfo GetVertexInputInfo()
@@ -571,13 +594,9 @@ namespace Meteora.View
 		}
 		#endregion
 
-		#region Vertex Buffer
-		protected virtual void CreateVertexBuffer()
-		{
+		#region Buffers
 
-		}
-
-		protected virtual void CreateIndexBuffer()
+		protected virtual void CreateBuffers()
 		{
 
 		}
@@ -606,15 +625,28 @@ namespace Meteora.View
 				case double[] _:
 					size = sizeof(double) * data.Length;
 					break;
+				case short[] _:
+					size = sizeof(short) * data.Length;
+					break;
 				case int[] _:
 					size = sizeof(int) * data.Length;
 					break;
 				case long[] _:
 					size = sizeof(long) * data.Length;
 					break;
+				case ushort[] _:
+					size = sizeof(ushort) * data.Length;
+					break;
+				case uint[] _:
+					size = sizeof(uint) * data.Length;
+					break;
+				case ulong[] _:
+					size = sizeof(ulong) * data.Length;
+					break;
 				default:
-					throw new Exception("Only float, double, int, and long are supported");
+					throw new Exception("Only float, double, short, int, and long are supported");
 			}
+
 
 			var (buffer, memory) = CreateBuffer(size, usage, properties);
 			var memPtr = device.MapMemory(memory, 0, size);
@@ -626,14 +658,26 @@ namespace Meteora.View
 				case double[] bufferData:
 					Marshal.Copy(bufferData, 0, memPtr, data.Length);
 					break;
+				case short[] bufferData:
+					Marshal.Copy(bufferData, 0, memPtr, data.Length);
+					break;
 				case int[] bufferData:
 					Marshal.Copy(bufferData, 0, memPtr, data.Length);
 					break;
 				case long[] bufferData:
 					Marshal.Copy(bufferData, 0, memPtr, data.Length);
 					break;
+				case ushort[] bufferData:
+					Marshal.Copy(bufferData.Select(e => (short)e).ToArray(), 0, memPtr, data.Length);
+					break;
+				case uint[] bufferData:
+					Marshal.Copy(bufferData.Select(e => (int)e).ToArray(), 0, memPtr, data.Length);
+					break;
+				case ulong[] bufferData:
+					Marshal.Copy(bufferData.Select(e => (long)e).ToArray(), 0, memPtr, data.Length);
+					break;
 				default:
-					throw new Exception("Only float, double, int, and long are supported");
+					throw new Exception("Only float, double, short, int, and long are supported");
 			}
 			device.UnmapMemory(memory);
 
