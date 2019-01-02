@@ -29,17 +29,17 @@ namespace Meteora.View
 		private static readonly int[] indices = new[]
 		{
 			//Front
-			0, 1, 2, 2, 3, 0,
+			7, 3, 2, 2, 6, 7,
 			//Back
-			6, 5, 4, 4, 7, 6,
+			1, 0, 4, 4, 5, 1,
 			//Left
 			4, 0, 3, 3, 7, 4,
 			//Right
-			5, 1, 2, 2, 6, 5,
+			2, 1, 5, 5, 6, 2,
 			//Top
-			7, 3, 2, 2, 6, 7,
+			6, 5, 4, 4, 7, 6,
 			//Bottom
-			4, 0, 1, 1, 5, 4
+			0, 1, 2, 2, 3, 0,
 		};
 
 		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
@@ -99,8 +99,8 @@ namespace Meteora.View
 			angle += 0.01f;
 			var ubo = new UniformBufferObject
 			{
-				model = mat4.Identity * mat4.Rotate(glm.Radians(angle), new vec3(0f, 0f, 1f)),
-				view = mat4.LookAt(new vec3(2f, 2f, 2f), vec3.Zero, new vec3(0f, 0f, 1f)),
+				model = mat4.Identity * mat4.Rotate(glm.Radians(angle), vec3.UnitZ),
+				view = mat4.LookAt(vec3.Ones  * 2f, vec3.Zero, vec3.UnitZ),
 				proj = mat4.Perspective(glm.Radians(90f), extent.Width / extent.Height, .1f, 10f)
 			};
 			ubo.proj[1, 1] *= -1;

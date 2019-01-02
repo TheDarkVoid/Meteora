@@ -151,10 +151,13 @@ namespace Meteora.View
 				return;
 			if (DateTime.Now >= nextSecond)
 			{
-				FPS = Math.Round(frameCount / (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds);
+				var frameTime = (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds;
+				FPS = Math.Round(frameCount / frameTime);
 				nextSecond = DateTime.Now.AddSeconds(1);
 				frameCount = 0;
-				data.control.ParentForm.Invoke(FPSCounter);
+				//data.control.ParentForm.Invoke(FPSCounter);
+				Console.SetCursorPosition(0, Console.WindowHeight-1);
+				Console.Write($"{FPS}fps  ");
 			}
 			frameCount++;
 			try
@@ -428,8 +431,8 @@ namespace Meteora.View
 				PolygonMode = PolygonMode.Fill,
 				LineWidth = 1f,
 				CullMode = CullModeFlags.Back,
-				FrontFace = FrontFace.CounterClockwise,
-				DepthBiasEnable = true,
+				FrontFace = FrontFace.Clockwise,
+				DepthBiasEnable = false,
 				DepthBiasConstantFactor = 0f,
 				DepthBiasClamp = 0f,
 				DepthBiasSlopeFactor = 0f
