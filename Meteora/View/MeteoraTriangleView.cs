@@ -42,9 +42,10 @@ namespace Meteora.View
 			0, 1, 2, 2, 3, 0,
 		};
 
-		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
 		private Mesh mesh = new Mesh(vertices, indices);
+		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/sphere.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
 
 		protected DescriptorSetLayout descriptorSetLayout;
 		protected DescriptorPool descriptorPool;
@@ -100,8 +101,8 @@ namespace Meteora.View
 			var ubo = new UniformBufferObject
 			{
 				model = mat4.Identity * mat4.Rotate(glm.Radians(angle), vec3.UnitZ),
-				view = mat4.LookAt(vec3.Ones  * 2f, vec3.Zero, vec3.UnitZ),
-				proj = mat4.Perspective(glm.Radians(90f), extent.Width / extent.Height, .1f, 10f)
+				view = mat4.LookAt(new vec3(1, 1, 2), vec3.Zero, vec3.UnitZ),
+				proj = mat4.Perspective(glm.Radians(90f), extent.Width / (float)extent.Height, .1f, 10f)
 			};
 			ubo.proj[1, 1] *= -1;
 			var values = ubo.Values;

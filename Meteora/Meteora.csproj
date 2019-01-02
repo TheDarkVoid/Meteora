@@ -216,6 +216,12 @@
     <Content Include="Models\monkey.obj">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <Content Include="Models\sphere.obj">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Models\sphereIco.obj">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <None Include="packages.config" />
     <Content Include="Shaders\Fragment\frag.spv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
