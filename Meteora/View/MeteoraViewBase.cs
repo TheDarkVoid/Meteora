@@ -111,6 +111,8 @@ namespace Meteora.View
 			CreateFrameBuffers();
 			CreateCommandPool();
 			CreateBuffers();
+			CreateDescriptorPool();
+			CreateDescriptorSets();
 			CreateCommandBuffers();
 			CreateSyncObjects();
 
@@ -357,6 +359,20 @@ namespace Meteora.View
 		}
 		#endregion
 
+		#region Descriptor Pool
+		protected virtual void CreateDescriptorPool()
+		{
+
+		}
+		#endregion
+
+		#region Descriptor Sets
+		protected virtual void CreateDescriptorSets()
+		{
+
+		}
+		#endregion
+
 		#region Descriptor Set Layout
 		protected virtual void CreateDescriptorSetLayout()
 		{
@@ -412,11 +428,12 @@ namespace Meteora.View
 				PolygonMode = PolygonMode.Fill,
 				LineWidth = 1f,
 				CullMode = CullModeFlags.Back,
-				FrontFace = FrontFace.Clockwise,
-				DepthBiasEnable = false,
+				FrontFace = FrontFace.CounterClockwise,
+				DepthBiasEnable = true,
 				DepthBiasConstantFactor = 0f,
 				DepthBiasClamp = 0f,
 				DepthBiasSlopeFactor = 0f
+				
 			};
 
 			var msaa = new PipelineMultisampleStateCreateInfo

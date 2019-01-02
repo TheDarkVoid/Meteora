@@ -12,7 +12,7 @@ using System.Runtime.InteropServices;
 using System.IO;
 using Meteora.Data;
 
-class Program
+public class Program
 {
 	static void Main(string[] args)
 	{

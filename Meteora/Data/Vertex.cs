@@ -9,9 +9,9 @@ namespace Meteora.Data
 {
 	public struct Vertex
 	{
-		public const int SIZE = sizeof(float) * 5;
+		public const int SIZE = sizeof(float) * 6;
 
-		public Vector2 position;
+		public Vector3 position;
 		public Vector3 color;
 
 		public float[] Data
@@ -22,6 +22,7 @@ namespace Meteora.Data
 				{
 					position.Data[0],
 					position.Data[1],
+					position.Data[2],
 					color.Data[0],
 					color.Data[1],
 					color.Data[2],
@@ -29,7 +30,7 @@ namespace Meteora.Data
 			}
 		}
 
-		public Vertex(Vector2 position, Vector3 color)
+		public Vertex(Vector3 position, Vector3 color)
 		{
 			this.position = position;
 			this.color = color;
@@ -37,7 +38,7 @@ namespace Meteora.Data
 
 		public Vertex(float[] position, float[] color)
 		{
-			this.position = new Vector2(position);
+			this.position = new Vector3(position);
 			this.color = new Vector3(color);
 		}
 
@@ -61,7 +62,7 @@ namespace Meteora.Data
 				{
 					Binding = 0,
 					Location = 0,
-					Format = Format.R32G32Sfloat,
+					Format = Format.R32G32B32Sfloat,
 					Offset = 0
 				},
 				//Color
@@ -70,7 +71,7 @@ namespace Meteora.Data
 					Binding = 0,
 					Location = 1,
 					Format = Format.R32G32B32Sfloat,
-					Offset = 2 * sizeof(float)
+					Offset = 3 * sizeof(float)
 				}
 			};
 			return attributeDescriptions;

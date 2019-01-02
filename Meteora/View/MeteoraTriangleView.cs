@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using GlmSharp;
 using Meteora.Data;
 using Vulkan;
 
@@ -12,20 +13,42 @@ namespace Meteora.View
 {
 	public class MeteoraTriangleView : MeteoraViewBase
 	{
-		private Vertex[] vertices = new Vertex[]
+		private static readonly Vertex[] vertices = new Vertex[]
 		{
-			new Vertex(new float[] { -0.5f, -0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
-			new Vertex(new float[] {  0.5f, -0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
-			new Vertex(new float[] {  0.5f,  0.5f }, new float[] { 1.0f, 1.0f , 1.0f }),
-			new Vertex(new float[] { -0.5f, 0.5f }, new float[] { 255/255f, 0.0f , 100/255f }),
+			new Vertex(new float[] { -0.5f, -0.5f, 0f }, new float[] { 1.0f, 1.0f , 1.0f }),			//0 BL
+			new Vertex(new float[] {  0.5f, -0.5f, 0f }, new float[] { 255/255f, 0.0f , 100/255f }),	//1 BR
+			new Vertex(new float[] {  0.5f,  0.5f, 0f }, new float[] { 1.0f, 1.0f , 1.0f }),			//2 TR
+			new Vertex(new float[] { -0.5f,  0.5f, 0f }, new float[] { 255/255f, 0.0f , 100/255f }),	//3 TL
+
+			new Vertex(new float[] { -0.5f, -0.5f, 1f }, new float[] { 1.0f, 1.0f , 1.0f }),			//4 BL
+			new Vertex(new float[] {  0.5f, -0.5f, 1f }, new float[] { 255/255f, 0.0f , 100/255f }),	//5 BR
+			new Vertex(new float[] {  0.5f,  0.5f, 1f }, new float[] { 1.0f, 1.0f , 1.0f }),			//6 TR
+			new Vertex(new float[] { -0.5f,  0.5f, 1f }, new float[] { 255/255f, 0.0f , 100/255f }),	//7 TL
 		};
 
-		private readonly int[] indices = new[]
+		private static readonly int[] indices = new[]
 		{
-			0, 1, 2, 2, 3, 0
+			//Front
+			0, 1, 2, 2, 3, 0,
+			//Back
+			6, 5, 4, 4, 7, 6,
+			//Left
+			4, 0, 3, 3, 7, 4,
+			//Right
+			5, 1, 2, 2, 6, 5,
+			//Top
+			7, 3, 2, 2, 6, 7,
+			//Bottom
+			4, 0, 1, 1, 5, 4
 		};
+
+		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
+		private Mesh mesh = new Mesh(vertices, indices);
 
 		protected DescriptorSetLayout descriptorSetLayout;
+		protected DescriptorPool descriptorPool;
+		protected DescriptorSet[] descriptorSets;
 		protected Vulkan.Buffer vertexBuffer;
 		protected DeviceMemory vertexBufferMemory;
 		protected Vulkan.Buffer indexBuffer;
@@ -64,8 +87,27 @@ namespace Meteora.View
 		public override void Draw(uint curImage)
 		{
 			var start = DateTime.Now;
+			var deltaTime = (float)(DateTime.Now - start).TotalSeconds;
+			UpdateUniformBuffer(curImage, deltaTime);
+		}
 
-			var deltaTime = (DateTime.Now - start).TotalSeconds;
+		float angle = 0;
+		public void UpdateUniformBuffer(uint currentImage, float deltaTime)
+		{
+			if (angle > 360)
+				angle -= 360;
+			angle += 0.01f;
+			var ubo = new UniformBufferObject
+			{
+				model = mat4.Identity * mat4.Rotate(glm.Radians(angle), new vec3(0f, 0f, 1f)),
+				view = mat4.LookAt(new vec3(2f, 2f, 2f), vec3.Zero, new vec3(0f, 0f, 1f)),
+				proj = mat4.Perspective(glm.Radians(90f), extent.Width / extent.Height, .1f, 10f)
+			};
+			ubo.proj[1, 1] *= -1;
+			var values = ubo.Values;
+			var dst = device.MapMemory(unifromBuffersMemory[currentImage], 0, values.Length);
+			Marshal.Copy(values, 0, dst, values.Length);
+			device.UnmapMemory(unifromBuffersMemory[currentImage]);
 		}
 
 		protected override void InitCommandBuffers()
@@ -104,7 +146,9 @@ namespace Meteora.View
 				commandBuffers[i].CmdBindVertexBuffer(0, vertexBuffer, 0);
 				commandBuffers[i].CmdBindIndexBuffer(indexBuffer, 0, IndexType.Uint32);
 
-				commandBuffers[i].CmdDrawIndexed((uint)indices.Length, 1, 0, 0, 0);
+				commandBuffers[i].CmdBindDescriptorSet(PipelineBindPoint.Graphics, pipelineLayout, 0, descriptorSets[i], null);
+
+				commandBuffers[i].CmdDrawIndexed((uint)mesh.indices.Length, 1, 0, 0, 0);
 
 				commandBuffers[i].CmdEndRenderPass();
 				commandBuffers[i].End();
@@ -136,8 +180,8 @@ namespace Meteora.View
 
 		protected void CreateVertexBuffer()
 		{
-			var vtx = vertices.SelectMany(v => v.Data).ToArray();
-			var bufferSize = vertices.Length * Vertex.SIZE;
+			var vtx = mesh.vertices.SelectMany(v => v.Data).ToArray();
+			var bufferSize = mesh.vertices.Length * Vertex.SIZE;
 
 
 			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(vtx, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
@@ -152,9 +196,9 @@ namespace Meteora.View
 
 		protected void CreateIndexBuffer()
 		{
-			var size = sizeof(int) * indices.Length;
+			var size = sizeof(int) * mesh.indices.Length;
 
-			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(indices, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
+			var (stagingBuffer, stagingBufferMemory) = CreateBuffer(mesh.indices, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
 
 			(indexBuffer, indexBufferMemory) = CreateBuffer(size, BufferUsageFlags.TransferDst | BufferUsageFlags.IndexBuffer, MemoryPropertyFlags.DeviceLocal);
 
@@ -175,6 +219,56 @@ namespace Meteora.View
 			{
 				(uniformBuffers[i], unifromBuffersMemory[i]) = CreateBuffer(size, BufferUsageFlags.UniformBuffer, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
 			}
+		}
+
+		protected override void CreateDescriptorPool()
+		{
+			DescriptorPoolSize poolSize = new DescriptorPoolSize
+			{
+				DescriptorCount = (uint)images.Length
+			};
+			DescriptorPoolCreateInfo poolInfo = new DescriptorPoolCreateInfo
+			{
+				PoolSizeCount = 1,
+				PoolSizes = new DescriptorPoolSize[] { poolSize },
+				MaxSets = (uint)images.Length
+			};
+			descriptorPool = device.CreateDescriptorPool(poolInfo);
+		}
+
+		protected override void CreateDescriptorSets()
+		{
+			var layouts = new DescriptorSetLayout[images.Length];
+			for (int i = 0; i < layouts.Length; i++)
+				layouts[i] = descriptorSetLayout;
+			var allocInfo = new DescriptorSetAllocateInfo
+			{
+				DescriptorPool = descriptorPool,
+				DescriptorSetCount = (uint)images.Length,
+				SetLayouts = layouts
+			};
+
+			descriptorSets = device.AllocateDescriptorSets(allocInfo);
+			for (int a = 0; a < descriptorSets.Length; a++)
+			{
+				var bufferInfo = new DescriptorBufferInfo
+				{
+					Buffer = uniformBuffers[a],
+					Offset = 0,
+					Range = (sizeof(float) * 16) * 2
+				};
+				var descriptorWrite = new WriteDescriptorSet
+				{
+					DstSet = descriptorSets[a],
+					DstBinding = 0,
+					DstArrayElement = 0,
+					DescriptorType = DescriptorType.UniformBuffer,
+					DescriptorCount = 1,
+					BufferInfo = new DescriptorBufferInfo[] { bufferInfo }
+				};
+				device.UpdateDescriptorSet(descriptorWrite, null);
+			}
+
 		}
 
 		protected override void CreateDescriptorSetLayout()
@@ -202,7 +296,7 @@ namespace Meteora.View
 
 		public override void CleanupBuffers()
 		{
-			base.CleanupBuffers();
+			device.DestroyDescriptorPool(descriptorPool);
 			device.DestroyDescriptorSetLayout(descriptorSetLayout);
 			for (int i = 0; i < uniformBuffers.Length; i++)
 			{
