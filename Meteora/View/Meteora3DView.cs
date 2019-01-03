@@ -45,10 +45,10 @@ namespace Meteora.View
 
 		//private Mesh mesh = new Mesh(vertices, indices);
 		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/sphere.obj");
+		private Mesh mesh = Mesh.LoadObj(@"Models/sphere.obj");
 		//private Mesh mesh = Mesh.LoadObj(@"Models/sphereIco.obj");
 		//private Mesh mesh = Mesh.LoadObj(@"Models/cone.obj");
-		private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
 
 		protected DescriptorSetLayout descriptorSetLayout;
 		protected DescriptorPool descriptorPool;
@@ -99,15 +99,24 @@ namespace Meteora.View
 			UpdateUniformBuffer(curImage);
 		}
 
+
+		float pos = 0;
+		float dir = 1;
 		public void UpdateUniformBuffer(uint currentImage)
 		{
 			if (angle > 360)
 				angle -= 360;
-			angle += DeltaTime.TotalSeconds * 90f;
+			angle += DeltaTime.TotalSeconds * 45f;
+			pos += dir * (float)DeltaTime.TotalSeconds;
+			if (Math.Abs(pos) > 1)
+			{
+				dir *= -1;
+				pos = 1 * -dir;
+			}
 			var ubo = new UniformBufferObject
 			{
-				model = mat4.Identity * mat4.Rotate(glm.Radians((float)angle), vec3.UnitY),
-				view = mat4.Translate(0,0,-2),//.LookAt(new vec3(0, 0, 2), vec3.Zero, vec3.UnitZ),
+				model = mat4.Identity * mat4.Rotate(glm.Radians((float)angle), vec3.UnitX),
+				view = mat4.Translate(pos,0,-2),//.LookAt(new vec3(0, 0, 2), vec3.Zero, vec3.UnitZ),
 				proj = mat4.Perspective(glm.Radians(90f), extent.Width / (float)extent.Height, .1f, 10f)
 			};
 			ubo.proj[1, 1] *= -1;

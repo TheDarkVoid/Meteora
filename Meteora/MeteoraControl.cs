@@ -14,11 +14,11 @@ namespace Meteora
 	public class MeteoraControl : UserControl
 	{
 		public const string ENGINE_NAME = "Meteora";
-		public readonly uint ENGINE_VERSION = Vulkan.Version.Make(0, 0, 1);
+		public readonly uint ENGINE_VERSION = Vulkan.Version.Make(0, 0, 2);
 
 		public InstanceCreateData data;
 		private Thread mainLoop;
-		private bool _firstPaint = false;
+		private ManualResetEvent _firstPaint = new ManualResetEvent(false);
 		private AutoResetEvent _mainLoopComplete;
 
 		public MeteoraControl(MeteoraViewBase view, string appName)
@@ -101,11 +101,7 @@ namespace Meteora
 
 		public virtual void Init(IntPtr handle)
 		{
-			while(true)
-			{
-				if (_firstPaint)
-					break;
-			}
+			_firstPaint.WaitOne();
 			data.instance = CreateInstance(data.appInfo);
 			data.surface = data.instance.CreateWin32SurfaceKHR(new Win32SurfaceCreateInfoKhr
 			{
@@ -170,7 +166,7 @@ namespace Meteora
 		protected override void OnPaint(PaintEventArgs e)
 		{
 			base.OnPaint(e);
-			_firstPaint = true;
+			_firstPaint.Set();
 		}
 
 		private void StartMainLoop()
