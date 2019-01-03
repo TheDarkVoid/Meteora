@@ -19,7 +19,8 @@ public class Program
 		var game = new MeteoraGame(new GameCreateInfo
 		{
 			Height = 1080,
-			Width = 1920
+			Width = 1920,
+			BorderStyle = FormBorderStyle.Sizable
 		});
 		game.Start();
 	}

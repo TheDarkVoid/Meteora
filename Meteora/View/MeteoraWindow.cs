@@ -23,10 +23,10 @@ namespace Meteora.View
 			//height += 43;
 			this.Size = new Size(createInfo.Width, createInfo.Height);
 			this.StartPosition = FormStartPosition.CenterScreen;
-			this.SizeGripStyle = SizeGripStyle.Hide;
+			this.SizeGripStyle = SizeGripStyle.Auto;
 			this.FormBorderStyle = createInfo.BorderStyle;
 			this.MaximizeBox = false;
-			this.MaximumSize = this.Size;
+			//this.MaximumSize = this.Size;
 			this.Name = createInfo.Title;
 			this.Text = createInfo.Title;
 			this.Controls.Add(control = new MeteoraControl(createInfo.View, createInfo.Title) { Dock = DockStyle.Fill });

@@ -22,7 +22,7 @@ namespace Meteora.View
 				{
 					Height = 720,
 					Width = 1280,
-					View = new MeteoraTriangleView()
+					View = new Meteora3DView()
 				};
 			}
 			gameWindowCreate = new AutoResetEvent(false);

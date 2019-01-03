@@ -56,10 +56,12 @@ namespace Meteora.Data
 				if(isVertex)
 				{
 					float x = float.Parse(coords[1]), y = float.Parse(coords[2]), z = float.Parse(coords[3]);
+					var col = (float)(rand.NextDouble()/2f)+.5f;
 					mesh.vertices[v++] = new Vertex
 					{
 						position = new Vector3(x * scale, y * scale, z * scale),
-						color = new Vector3((float)rand.NextDouble(), (float)rand.NextDouble(), (float)rand.NextDouble())
+						//color = new Vector3((float)rand.NextDouble(), (float)rand.NextDouble(), (float)rand.NextDouble())
+						color = new Vector3(col, col, col)
 					};
 				}else
 				{

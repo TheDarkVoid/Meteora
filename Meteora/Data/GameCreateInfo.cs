@@ -20,7 +20,7 @@ namespace Meteora.Data
 		{
 			Height = 1080;
 			Width = 1920;
-			View = new MeteoraTriangleView();
+			View = new Meteora3DView();
 			Title = "Meteora Window";
 			BorderStyle = FormBorderStyle.FixedSingle;
 		}

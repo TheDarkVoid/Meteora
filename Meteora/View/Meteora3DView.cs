@@ -5,13 +5,14 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 using GlmSharp;
 using Meteora.Data;
 using Vulkan;
 
 namespace Meteora.View
 {
-	public class MeteoraTriangleView : MeteoraViewBase
+	public class Meteora3DView : MeteoraViewBase
 	{
 		private static readonly Vertex[] vertices = new Vertex[]
 		{
@@ -42,10 +43,12 @@ namespace Meteora.View
 			0, 1, 2, 2, 3, 0,
 		};
 
-		private Mesh mesh = new Mesh(vertices, indices);
+		//private Mesh mesh = new Mesh(vertices, indices);
 		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
 		//private Mesh mesh = Mesh.LoadObj(@"Models/sphere.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/sphereIco.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Models/cone.obj");
+		private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
 
 		protected DescriptorSetLayout descriptorSetLayout;
 		protected DescriptorPool descriptorPool;
@@ -84,24 +87,27 @@ namespace Meteora.View
 
 			return shaderStages;
 		}
+		double angle;
 
-		public override void Draw(uint curImage)
+		protected override void Start()
 		{
-			var start = DateTime.Now;
-			var deltaTime = (float)(DateTime.Now - start).TotalSeconds;
-			UpdateUniformBuffer(curImage, deltaTime);
+			angle = 0;
 		}
 
-		float angle = 0;
-		public void UpdateUniformBuffer(uint currentImage, float deltaTime)
+		protected override void Draw(uint curImage)
+		{
+			UpdateUniformBuffer(curImage);
+		}
+
+		public void UpdateUniformBuffer(uint currentImage)
 		{
 			if (angle > 360)
 				angle -= 360;
-			angle += 0.01f;
+			angle += DeltaTime.TotalSeconds * 90f;
 			var ubo = new UniformBufferObject
 			{
-				model = mat4.Identity * mat4.Rotate(glm.Radians(angle), vec3.UnitZ),
-				view = mat4.LookAt(new vec3(1, 1, 2), vec3.Zero, vec3.UnitZ),
+				model = mat4.Identity * mat4.Rotate(glm.Radians((float)angle), vec3.UnitY),
+				view = mat4.Translate(0,0,-2),//.LookAt(new vec3(0, 0, 2), vec3.Zero, vec3.UnitZ),
 				proj = mat4.Perspective(glm.Radians(90f), extent.Width / (float)extent.Height, .1f, 10f)
 			};
 			ubo.proj[1, 1] *= -1;

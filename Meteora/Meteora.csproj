@@ -202,7 +202,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="View\IMeteoraView.cs" />
     <Compile Include="View\MeteoraGame.cs" />
-    <Compile Include="View\MeteoraTriangleView.cs" />
+    <Compile Include="View\Meteora3DView.cs" />
     <Compile Include="View\MeteoraViewBase.cs" />
     <Compile Include="View\MeteoraWindow.cs">
       <SubType>Form</SubType>
@@ -220,6 +220,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Include="Models\sphereIco.obj">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Models\cone.obj">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <None Include="packages.config" />

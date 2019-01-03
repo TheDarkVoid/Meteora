@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 using Meteora.Data;
 using System.IO;
 using System.Windows.Threading;
+using System.Timers;
 
 namespace Meteora.View
 {
@@ -60,6 +61,7 @@ namespace Meteora.View
 		protected uint bufferSize;
 		protected Fence[] inflightFences;
 		protected int currentFrame = 0;
+		protected TimeSpan DeltaTime { get; private set; }
 
 		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
 		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
@@ -75,6 +77,7 @@ namespace Meteora.View
 
 		private bool _swapChainActive = false;
 		private bool _running;
+		private DateTime _lastFrame;
 
 		#region Init
 		public virtual void Initialize(InstanceCreateData data)
@@ -135,6 +138,29 @@ namespace Meteora.View
 			};
 
 			initialized = Running = true;
+			_lastFrame = DateTime.Now;
+			Start();
+			data.control.ParentForm.ResizeBegin += ResizeBegin;
+			data.control.ParentForm.ResizeEnd += ResizeEnd;
+		}
+
+		#region Resize
+		protected virtual void ResizeBegin(object sender, EventArgs e)
+		{
+			render = false;
+		}
+
+		protected virtual void ResizeEnd(object sender, EventArgs e)
+		{
+			RecreateSwapChain();
+		}
+		#endregion
+
+		#endregion
+
+		#region Start
+		protected virtual void Start()
+		{
 		}
 		#endregion
 
@@ -149,6 +175,8 @@ namespace Meteora.View
 			device.ResetFence(inflightFences[currentFrame]);
 			if (!Running)
 				return;
+			DeltaTime = (DateTime.Now - _lastFrame);
+			_lastFrame = DateTime.Now;
 			if (DateTime.Now >= nextSecond)
 			{
 				var frameTime = (DateTime.Now - nextSecond.AddSeconds(-1)).TotalSeconds;
@@ -157,7 +185,7 @@ namespace Meteora.View
 				frameCount = 0;
 				//data.control.ParentForm.Invoke(FPSCounter);
 				Console.SetCursorPosition(0, Console.WindowHeight-1);
-				Console.Write($"{FPS}fps  ");
+				Console.Write($"{FPS}fps {DeltaTime.TotalMilliseconds}ms ");
 			}
 			frameCount++;
 			try
@@ -189,8 +217,8 @@ namespace Meteora.View
 					if (render)
 					{
 						render = false;
-						Console.WriteLine("Resize");
-						RecreateSwapChain();
+						//Console.WriteLine("Resize");
+						//RecreateSwapChain();
 						//device.ResetFence(inflightFences[currentFrame]);
 						return;
 					}
@@ -201,7 +229,7 @@ namespace Meteora.View
 			currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 		}
 
-		public virtual void Draw(uint curImage)
+		protected virtual void Draw(uint curImage)
 		{
 
 		}
@@ -237,17 +265,11 @@ namespace Meteora.View
 
 		protected Extent2D ChooseSwapExtent(SurfaceCapabilitiesKhr capabilities)
 		{
-			if (capabilities.CurrentExtent.Width != uint.MaxValue)
-				return capabilities.CurrentExtent;
-			else
+			return new Extent2D
 			{
-
-				return new Extent2D
-				{
-					Height = (uint)data.control.Height,
-					Width = (uint)data.control.Width
-				};
-			}
+				Height = (uint)data.control.Height,
+				Width = (uint)data.control.Width
+			};
 		}
 
 		protected void CreateSwapChain()
@@ -431,7 +453,7 @@ namespace Meteora.View
 				PolygonMode = PolygonMode.Fill,
 				LineWidth = 1f,
 				CullMode = CullModeFlags.Back,
-				FrontFace = FrontFace.Clockwise,
+				FrontFace = FrontFace.CounterClockwise,
 				DepthBiasEnable = false,
 				DepthBiasConstantFactor = 0f,
 				DepthBiasClamp = 0f,
