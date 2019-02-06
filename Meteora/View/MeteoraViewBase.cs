@@ -11,36 +11,23 @@ using Meteora.Data;
 using System.IO;
 using System.Windows.Threading;
 using System.Timers;
+using SDL2;
 
 namespace Meteora.View
 {
 	public abstract class MeteoraViewBase : IMeteoraView
 	{
 		public const uint VK_SUBPASS_INTERNAL = ~0U;
+		public const uint VK_QUEUE_FAMILY_IGNORED = ~0U;
 		public const int MAX_FRAMES_IN_FLIGHT = 2;
 
 		public bool initialized;
 		public object runLock = new object();
-		public bool Running
-		{
-			get
-			{
-				lock(runLock)
-				{
-					return _running;
-				}
-			}
-			set
-			{
-				lock(runLock)
-				{
-					_running = value;
-				}
-			}
-		}
+		public bool running;
 		public bool render = true;
 		public Device device;
 		public double FPS;
+		public TimeSpan DeltaTime { get; private set; }
 
 		protected InstanceCreateData data;
 		protected Queue graphicsQueue;
@@ -61,7 +48,6 @@ namespace Meteora.View
 		protected uint bufferSize;
 		protected Fence[] inflightFences;
 		protected int currentFrame = 0;
-		protected TimeSpan DeltaTime { get; private set; }
 
 		private readonly Semaphore[] waitSemaphores = new Semaphore[1];
 		private readonly Semaphore[] signalSemaphores = new Semaphore[1];
@@ -73,10 +59,7 @@ namespace Meteora.View
 		private PipelineStageFlags[] waitStages = { PipelineStageFlags.ColorAttachmentOutput };
 		private int frameCount;
 		private DateTime nextSecond = DateTime.Now;
-		private System.Windows.Forms.MethodInvoker FPSCounter;
 
-		private bool _swapChainActive = false;
-		private bool _running;
 		private DateTime _lastFrame;
 
 		#region Init
@@ -99,7 +82,11 @@ namespace Meteora.View
 				EnabledExtensionCount = (uint)data.enabledDeviceExtensions.Length,
 				EnabledLayerNames = data.enabledLayers,
 				EnabledLayerCount = (data.enabledLayers == null ? 0 : (uint)data.enabledLayers.Length),
-				QueueCreateInfos = new DeviceQueueCreateInfo[] { graphicsQueue, presentQueue }
+				QueueCreateInfos = new DeviceQueueCreateInfo[] { graphicsQueue, presentQueue },
+				EnabledFeatures = new PhysicalDeviceFeatures
+				{
+					SamplerAnisotropy = true
+				}
 			};
 
 			device = data.physicalDevice.CreateDevice(deviceInfo);
@@ -119,11 +106,6 @@ namespace Meteora.View
 			CreateCommandBuffers();
 			CreateSyncObjects();
 
-			FPSCounter = delegate
-			{
-				data.control.ParentForm.Text = $"{data.appName}: {FPS} FPS";
-			};
-
 			submitInfo = new SubmitInfo
 			{
 				WaitSemaphoreCount = 1,
@@ -137,11 +119,12 @@ namespace Meteora.View
 				SwapchainCount = 1,
 			};
 
-			initialized = Running = true;
+			initialized = running = true;
 			_lastFrame = DateTime.Now;
 			Start();
-			data.control.ParentForm.ResizeBegin += ResizeBegin;
-			data.control.ParentForm.ResizeEnd += ResizeEnd;
+
+			//data.control.ParentForm.ResizeBegin += ResizeBegin;
+			//data.control.ParentForm.ResizeEnd += ResizeEnd;
 		}
 
 		#region Resize
@@ -167,14 +150,14 @@ namespace Meteora.View
 		#region Draw
 		public virtual void DrawFrame()
 		{
-			if (!initialized)
-				return;
+			//if (!initialized)
+			//return;
 			if (!render)
 				return;
+			//if (!Running)
+			//return;
 			device.WaitForFence(inflightFences[currentFrame], true, ulong.MaxValue);
 			device.ResetFence(inflightFences[currentFrame]);
-			if (!Running)
-				return;
 			DeltaTime = (DateTime.Now - _lastFrame);
 			_lastFrame = DateTime.Now;
 			if (DateTime.Now >= nextSecond)
@@ -183,8 +166,7 @@ namespace Meteora.View
 				FPS = Math.Round(frameCount / frameTime);
 				nextSecond = DateTime.Now.AddSeconds(1);
 				frameCount = 0;
-				//data.control.ParentForm.Invoke(FPSCounter);
-				Console.SetCursorPosition(0, Console.WindowHeight-1);
+				Console.SetCursorPosition(0, Console.WindowTop + Console.WindowHeight - 1);
 				Console.Write($"{FPS}fps {DeltaTime.TotalMilliseconds}ms ");
 			}
 			frameCount++;
@@ -214,14 +196,7 @@ namespace Meteora.View
 			{
 				if (e.Result == Result.ErrorOutOfDateKhr || e.Result == Result.SuboptimalKhr)
 				{
-					if (render)
-					{
-						render = false;
-						//Console.WriteLine("Resize");
-						//RecreateSwapChain();
-						//device.ResetFence(inflightFences[currentFrame]);
-						return;
-					}
+					return;
 				}
 				else
 					throw e;
@@ -263,12 +238,14 @@ namespace Meteora.View
 			return PresentModeKhr.Fifo;
 		}
 
-		protected Extent2D ChooseSwapExtent(SurfaceCapabilitiesKhr capabilities)
+		protected Extent2D ChooseSwapExtent()
 		{
+			//return capabilities.CurrentExtent;
+			SDL.SDL_GetWindowSize(data.windowPtr, out int w, out int h);
 			return new Extent2D
 			{
-				Height = (uint)data.control.Height,
-				Width = (uint)data.control.Width
+				Height = (uint)h,
+				Width = (uint)w
 			};
 		}
 
@@ -276,7 +253,7 @@ namespace Meteora.View
 		{
 			format = ChooseFormat(data.formats);
 			var presentMode = ChoosePresentMode(data.presentModes);
-			extent = ChooseSwapExtent(data.surfaceCapabilities);
+			extent = ChooseSwapExtent();
 
 			var imageCount = data.surfaceCapabilities.MinImageCount + 1;
 			if (data.surfaceCapabilities.MaxImageCount > 0 && imageCount > data.surfaceCapabilities.MaxImageCount)
@@ -311,13 +288,10 @@ namespace Meteora.View
 
 			images = device.GetSwapchainImagesKHR(swapchain);
 			bufferSize = imageCount;
-			_swapChainActive = true;
 		}
 
 		protected void CleanupSwapChain()
 		{
-			if (!_swapChainActive)
-				return;
 			for (int i = 0; i < bufferSize; i++)
 				device.DestroyFramebuffer(framebuffers[i]);
 
@@ -330,7 +304,6 @@ namespace Meteora.View
 				device.DestroyImageView(imageViews[i]);
 
 			device.DestroySwapchainKHR(swapchain);
-			_swapChainActive = false;
 		}
 
 		protected void RecreateSwapChain()
@@ -358,29 +331,28 @@ namespace Meteora.View
 			imageViews = new ImageView[bufferSize];
 			for (int i = 0; i < images.Length; i++)
 			{
-				var viewInfo = new ImageViewCreateInfo
-				{
-					Image = images[i],
-					ViewType = ImageViewType.View2D,
-					Format = format.Format,
-					Components = new ComponentMapping
-					{
-						R = ComponentSwizzle.Identity,
-						G = ComponentSwizzle.Identity,
-						B = ComponentSwizzle.Identity,
-						A = ComponentSwizzle.Identity,
-					},
-					SubresourceRange = new ImageSubresourceRange
-					{
-						AspectMask = ImageAspectFlags.Color,
-						BaseMipLevel = 0,
-						LevelCount = 1,
-						BaseArrayLayer = 0,
-						LayerCount = 1
-					}
-				};
-				imageViews[i] = device.CreateImageView(viewInfo);
+				imageViews[i] = CreateImageView(images[i], format.Format); 
 			}
+		}
+
+		protected ImageView CreateImageView(Image image, Format format = Format.R8G8B8A8Unorm)
+		{
+			var viewInfo = new ImageViewCreateInfo
+			{
+				Image = image,
+				ViewType = ImageViewType.View2D,
+				Format = format,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					BaseMipLevel = 0,
+					LevelCount = 1,
+					BaseArrayLayer = 0,
+					LayerCount = 1
+				}
+			};
+
+			return device.CreateImageView(viewInfo);
 		}
 		#endregion
 
@@ -754,21 +726,7 @@ namespace Meteora.View
 
 		public void CopyBuffer(Vulkan.Buffer src, Vulkan.Buffer dst, DeviceSize size)
 		{
-			var allocInfo = new CommandBufferAllocateInfo
-			{
-				Level = CommandBufferLevel.Primary,
-				CommandPool = commandPool,
-				CommandBufferCount = 1
-			};
-
-			var commandBuffer = device.AllocateCommandBuffers(allocInfo)[0];
-
-			var beginInfo = new CommandBufferBeginInfo
-			{
-				Flags = CommandBufferUsageFlags.OneTimeSubmit
-			};
-
-			commandBuffer.Begin(beginInfo);
+			var commandBuffer = BeginSingleTimeCommands();
 
 			var copyRegion = new BufferCopy
 			{
@@ -778,18 +736,7 @@ namespace Meteora.View
 			};
 
 			commandBuffer.CmdCopyBuffer(src, dst, copyRegion);
-
-			commandBuffer.End();
-
-			var submitInfo = new SubmitInfo
-			{
-				CommandBufferCount = 1,
-				CommandBuffers = new[] { commandBuffer }
-			};
-
-			graphicsQueue.Submit(submitInfo);
-			graphicsQueue.WaitIdle();
-			device.FreeCommandBuffer(commandPool, commandBuffer);
+			EndSingleTimeCommands(commandBuffer);
 		}
 		#endregion
 
@@ -805,6 +752,40 @@ namespace Meteora.View
 			};
 			commandBuffers = device.AllocateCommandBuffers(allocInfo);
 			InitCommandBuffers();
+		}
+		public CommandBuffer BeginSingleTimeCommands()
+		{
+			var allocInfo = new CommandBufferAllocateInfo
+			{
+				Level = CommandBufferLevel.Primary,
+				CommandPool = commandPool,
+				CommandBufferCount = 1
+			};
+			var cmdBuffer = device.AllocateCommandBuffers(allocInfo).First();
+
+			var beginInfo = new CommandBufferBeginInfo
+			{
+				Flags = CommandBufferUsageFlags.OneTimeSubmit
+			};
+
+			cmdBuffer.Begin(beginInfo);
+
+			return cmdBuffer;
+		}
+
+
+		public void EndSingleTimeCommands(CommandBuffer commandBuffer)
+		{
+			commandBuffer.End();
+
+			var submitInfo = new SubmitInfo
+			{
+				CommandBufferCount = 1,
+				CommandBuffers = new CommandBuffer[] { commandBuffer }
+			};
+			graphicsQueue.Submit(submitInfo);
+			graphicsQueue.WaitIdle();
+			device.FreeCommandBuffer(commandPool, commandBuffer);
 		}
 
 		protected virtual void InitCommandBuffers()
@@ -833,6 +814,117 @@ namespace Meteora.View
 		}
 		#endregion
 
+		#region Images
+		public (Image image, DeviceMemory imageMemory) CreateImage(int width, int height, Format format = Format.R8G8B8A8Unorm, ImageTiling tiling = ImageTiling.Optimal, ImageUsageFlags usageFlags = ImageUsageFlags.TransferDst | ImageUsageFlags.Sampled, MemoryPropertyFlags propertyFlags = MemoryPropertyFlags.DeviceLocal)
+		{
+			var imageInfo = new ImageCreateInfo
+			{
+				ImageType = ImageType.Image2D,
+				Extent = new Extent3D { Width = (uint)width, Height = (uint)height, Depth = 1 },
+				MipLevels = 1,
+				ArrayLayers = 1,
+				Format = format,
+				Tiling = tiling,
+				InitialLayout = ImageLayout.Undefined,
+				Usage = usageFlags,
+				SharingMode = SharingMode.Exclusive,
+				Samples = SampleCountFlags.Count1,
+			};
+			var image = device.CreateImage(imageInfo);
+			var memReq = device.GetImageMemoryRequirements(image);
+			var allocInfo = new MemoryAllocateInfo
+			{
+				AllocationSize = memReq.Size,
+				MemoryTypeIndex = FindMemoryType(memReq.MemoryTypeBits, propertyFlags)
+			};
+			var memory = device.AllocateMemory(allocInfo);
+			device.BindImageMemory(image, memory, 0);
+			return (image, memory);
+		}
+
+		public void TransitionImageLayout(Image image, ImageLayout oldLayout, ImageLayout newLayout, Format format = Format.R8G8B8A8Unorm)
+		{
+			var cmdBuffer = BeginSingleTimeCommands();
+
+			var barrier = new ImageMemoryBarrier
+			{
+				OldLayout = oldLayout,
+				NewLayout = newLayout,
+				SrcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, 
+				DstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+				Image = image,
+				SubresourceRange = new ImageSubresourceRange
+				{
+					AspectMask = ImageAspectFlags.Color,
+					BaseMipLevel = 0,
+					LevelCount = 1,
+					BaseArrayLayer = 0,
+					LayerCount = 1
+				},
+			};
+
+			PipelineStageFlags sourceStage = default;
+			PipelineStageFlags destinationStage = default;
+
+			if(oldLayout == ImageLayout.Undefined && newLayout == ImageLayout.TransferDstOptimal)
+			{
+				barrier.SrcAccessMask = 0;
+				barrier.DstAccessMask = AccessFlags.TransferWrite;
+
+				sourceStage = PipelineStageFlags.TopOfPipe;
+				destinationStage = PipelineStageFlags.Transfer;
+			}else if(oldLayout == ImageLayout.TransferDstOptimal && newLayout == ImageLayout.ShaderReadOnlyOptimal)
+			{
+				barrier.SrcAccessMask = AccessFlags.TransferWrite;
+				barrier.DstAccessMask = AccessFlags.ShaderRead;
+
+				sourceStage = PipelineStageFlags.Transfer;
+				destinationStage = PipelineStageFlags.FragmentShader;
+			}else
+			{
+				throw new Exception("Unsupported Transition");
+			}
+
+			cmdBuffer.CmdPipelineBarrier(sourceStage, destinationStage, 0, null, null, barrier);
+
+			EndSingleTimeCommands(cmdBuffer);
+		}
+
+		public void CopyBufferToImage(Vulkan.Buffer buffer, Image image, int width, int height)
+		{
+			var cmdBuffer = BeginSingleTimeCommands();
+
+			var region = new BufferImageCopy
+			{
+				BufferOffset = 0,
+				BufferRowLength = 0,
+				BufferImageHeight = 0,
+				ImageSubresource = new ImageSubresourceLayers
+				{
+					AspectMask = ImageAspectFlags.Color,
+					MipLevel = 0,
+					BaseArrayLayer = 0,
+					LayerCount = 1
+				},
+				ImageOffset = new Offset3D
+				{
+					X = 0,
+					Y = 0,
+					Z = 0
+				},
+				ImageExtent = new Extent3D
+				{
+					Width = (uint)width,
+					Height = (uint)height,
+					Depth = 1
+				}
+			};
+
+			cmdBuffer.CmdCopyBufferToImage(buffer, image, ImageLayout.TransferDstOptimal, new BufferImageCopy[] { region });
+
+			EndSingleTimeCommands(cmdBuffer);
+		}
+		#endregion
 
 		public virtual void Cleanup()
 		{
@@ -859,7 +951,7 @@ namespace Meteora.View
 
 		}
 
-		#region IDisposable Support
+#region IDisposable Support
 		protected bool disposedValue = false; // To detect redundant calls
 
 		protected virtual void Dispose(bool disposing)
@@ -890,7 +982,7 @@ namespace Meteora.View
 		// This code added to correctly implement the disposable pattern.
 		public void Dispose()
 		{
-			Running = false;
+			running = false;
 			Dispose(true);
 			GC.SuppressFinalize(this);
 		}

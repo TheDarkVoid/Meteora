@@ -60,7 +60,8 @@ namespace Meteora.Data
 					mesh.vertices[v++] = new Vertex
 					{
 						position = new Vector3(x * scale, y * scale, z * scale),
-						color = new Vector3((float)rand.NextDouble(), (float)rand.NextDouble(), (float)rand.NextDouble())
+						color = new Vector3((float)rand.NextDouble(), (float)rand.NextDouble(), (float)rand.NextDouble()),
+						texCoord = new Vector2(0,0)
 						//color = new Vector3(col, col, col)
 					};
 				}else

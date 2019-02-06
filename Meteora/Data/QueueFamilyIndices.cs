@@ -11,6 +11,6 @@ namespace Meteora.Data
 		public int GraphicsFamily { get; set; } = -1;
 		public int PresentFamily { get; set; } = -1;
 
-		public bool isComplete() => GraphicsFamily >= 0 && PresentFamily >= 0;
+		public bool IsComplete => GraphicsFamily >= 0 && PresentFamily >= 0;
 	}
 }

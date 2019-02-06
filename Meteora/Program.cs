@@ -3,14 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Meteora;
 using System.Windows.Forms;
-using System.Threading;
 using Meteora.View;
-using Vulkan;
-using System.Runtime.InteropServices;
-using System.IO;
 using Meteora.Data;
+using GlmSharp;
 
 public class Program
 {
@@ -20,7 +16,6 @@ public class Program
 		{
 			Height = 1080,
 			Width = 1920,
-			BorderStyle = FormBorderStyle.Sizable
 		});
 		game.Start();
 	}

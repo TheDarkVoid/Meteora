@@ -23,9 +23,8 @@ namespace Meteora.Data
 		public PresentModeKhr[] presentModes;
 		public DebugReportCallbackExt debugCallback;
 		public Instance.DebugReportCallback debugCallbackDelegate;
-		public MeteoraControl control;
-		public string appName;
 		public ApplicationInfo appInfo;
-		public IntPtr handle;
+		public IntPtr windowPtr;
+		internal GameCreateInfo createInfo;
 	}
 }

@@ -6,14 +6,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Meteora.Data;
+using Vulkan;
 
 namespace Meteora.View
 {
 	public class MeteoraGame
 	{
+		
+
 		public MeteoraWindow Window { get; private set; }
-		private AutoResetEvent gameWindowCreate;
-		private Thread thread;
 		public MeteoraGame(GameCreateInfo createInfo = null)
 		{
 			if(createInfo == null)
@@ -25,27 +26,20 @@ namespace Meteora.View
 					View = new Meteora3DView()
 				};
 			}
-			gameWindowCreate = new AutoResetEvent(false);
-			thread = new Thread(() =>
-			{
-				Application.EnableVisualStyles();
-				Window = new MeteoraWindow(createInfo);
-				gameWindowCreate.Set();
-				Application.Run(Window);
-			});
-			thread.Start();
+			Window = new MeteoraWindow(createInfo);
 		}
 
 		public void Start()
 		{
-			gameWindowCreate.WaitOne();
 			Console.Write("Initializing... ");
 			Window.Init();
 			Console.WriteLine("Done!");
 			Console.WriteLine("Running Main Loop... ");
-			Window.DoMainLoop();
-			thread.Join();
+			Window.RenderLoop();
+			Window.Dispose();
 		}
+
+		
 
 	}
 }

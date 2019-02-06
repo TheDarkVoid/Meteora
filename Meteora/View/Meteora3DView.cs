@@ -8,7 +8,9 @@ using System.Threading.Tasks;
 using System.Timers;
 using GlmSharp;
 using Meteora.Data;
+using System.Numerics;
 using Vulkan;
+using SkiaSharp;
 
 namespace Meteora.View
 {
@@ -16,54 +18,68 @@ namespace Meteora.View
 	{
 		private static readonly Vertex[] vertices = new Vertex[]
 		{
-			new Vertex(new float[] { -0.5f, -0.5f, 0f }, new float[] { 1.0f, 1.0f , 1.0f }),			//0 BL
-			new Vertex(new float[] {  0.5f, -0.5f, 0f }, new float[] { 255/255f, 0.0f , 100/255f }),	//1 BR
-			new Vertex(new float[] {  0.5f,  0.5f, 0f }, new float[] { 1.0f, 1.0f , 1.0f }),			//2 TR
-			new Vertex(new float[] { -0.5f,  0.5f, 0f }, new float[] { 255/255f, 0.0f , 100/255f }),	//3 TL
+			new Vertex(new float[] { -0.5f, -0.5f, 0f }, new float[] { 1.0f, 1.0f, 1.0f }, new float[] { 1.0f, 0.0f }),	//0 BL
+			new Vertex(new float[] {  0.5f, -0.5f, 0f }, new float[] { 1.0f, 0.0f, 0.4f }, new float[] { 0.0f, 0.0f }),	//1 BR
+			new Vertex(new float[] {  0.5f,  0.5f, 0f }, new float[] { 1.0f, 1.0f, 1.0f }, new float[] { 0.0f, 1.0f }),	//2 TR
+			new Vertex(new float[] { -0.5f,  0.5f, 0f }, new float[] { 1.0f, 0.0f, 0.4f }, new float[] { 1.0f, 1.0f }),	//3 TL
 
-			new Vertex(new float[] { -0.5f, -0.5f, 1f }, new float[] { 1.0f, 1.0f , 1.0f }),			//4 BL
-			new Vertex(new float[] {  0.5f, -0.5f, 1f }, new float[] { 255/255f, 0.0f , 100/255f }),	//5 BR
-			new Vertex(new float[] {  0.5f,  0.5f, 1f }, new float[] { 1.0f, 1.0f , 1.0f }),			//6 TR
-			new Vertex(new float[] { -0.5f,  0.5f, 1f }, new float[] { 255/255f, 0.0f , 100/255f }),	//7 TL
+			new Vertex(new float[] { -0.5f, -0.5f, 1f }, new float[] { 1.0f, 1.0f, 1.0f }, new float[] { 1.0f, 0.0f }),	//4 BL
+			new Vertex(new float[] {  0.5f, -0.5f, 1f }, new float[] { 1.0f, 0.0f, 0.4f }, new float[] { 0.0f, 0.0f }),	//5 BR
+			new Vertex(new float[] {  0.5f,  0.5f, 1f }, new float[] { 1.0f, 1.0f, 1.0f }, new float[] { 0.0f, 1.0f }),	//6 TR
+			new Vertex(new float[] { -0.5f,  0.5f, 1f }, new float[] { 1.0f, 0.0f, 0.4f }, new float[] { 1.0f, 1.0f }),	//7 TL
 		};
 
 		private static readonly int[] indices = new[]
 		{
 			//Front
-			7, 3, 2, 2, 6, 7,
+			2, 3, 7, 7, 6, 2,
 			//Back
-			1, 0, 4, 4, 5, 1,
+			4, 0, 1, 1, 5, 4,
 			//Left
-			4, 0, 3, 3, 7, 4,
+			3, 0, 4, 4, 7, 3,
 			//Right
-			2, 1, 5, 5, 6, 2,
+			5, 1, 2, 2, 6, 5,
 			//Top
-			6, 5, 4, 4, 7, 6,
+			4, 5, 6, 6, 7, 4,
 			//Bottom
-			0, 1, 2, 2, 3, 0,
+			2, 1, 0, 0, 3, 2,
 		};
 
 		//private Mesh mesh = new Mesh(vertices, indices);
-		//private Mesh mesh = Mesh.LoadObj(@"Models/cube.obj");
-		private Mesh mesh = Mesh.LoadObj(@"Models/sphere.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/sphereIco.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/cone.obj");
-		//private Mesh mesh = Mesh.LoadObj(@"Models/monkey.obj");
+		private Mesh mesh = Mesh.LoadObj(@"Res/Models/cube.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Res/Models/sphere.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Res/Models/sphereIco.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Res/Models/cone.obj");
+		//private Mesh mesh = Mesh.LoadObj(@"Res/Models/monkey.obj");
+
+		//Textures
+		protected Image textureImage;
+		protected ImageView textureImageView;
+		protected DeviceMemory textureImageMemory;
+		protected Sampler textureSampler;
 
 		protected DescriptorSetLayout descriptorSetLayout;
 		protected DescriptorPool descriptorPool;
 		protected DescriptorSet[] descriptorSets;
+
+		//Buffers
 		protected Vulkan.Buffer vertexBuffer;
 		protected DeviceMemory vertexBufferMemory;
+		protected Vulkan.Buffer stagingBuffer;
+		protected DeviceMemory stagingBufferMemory;
 		protected Vulkan.Buffer indexBuffer;
 		protected DeviceMemory indexBufferMemory;
 		protected Vulkan.Buffer[] uniformBuffers;
 		protected DeviceMemory[] unifromBuffersMemory;
 
+
+
+		public const float DegToRad = (float)Math.PI / 180f;
+
 		protected override PipelineShaderStageCreateInfo[] CreateShaderStages()
 		{
-			var fragModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Fragment/frag.spv"));
-			var vertModule = CreateShaderModule(File.ReadAllBytes(@"Shaders/Vertex/vert.spv"));
+			var fragModule = CreateShaderModule(File.ReadAllBytes(@"Res/Shaders/Fragment/frag.spv"));
+			var vertModule = CreateShaderModule(File.ReadAllBytes(@"Res/Shaders/Vertex/vert.spv"));
 
 			var vertShaderStageInfo = new PipelineShaderStageCreateInfo
 			{
@@ -100,25 +116,18 @@ namespace Meteora.View
 		}
 
 
-		float pos = 0;
-		float dir = 1;
 		public void UpdateUniformBuffer(uint currentImage)
 		{
 			if (angle > 360)
 				angle -= 360;
 			angle += DeltaTime.TotalSeconds * 45f;
-			pos += dir * (float)DeltaTime.TotalSeconds;
-			if (Math.Abs(pos) > 1)
-			{
-				dir *= -1;
-				pos = 1 * -dir;
-			}
 			var ubo = new UniformBufferObject
 			{
-				model = mat4.Identity * mat4.Rotate(glm.Radians((float)angle), vec3.UnitX),
-				view = mat4.Translate(pos,0,-2),//.LookAt(new vec3(0, 0, 2), vec3.Zero, vec3.UnitZ),
+				model = mat4.Identity * mat4.Rotate(glm.Radians((float)angle), vec3.UnitY),
+				view = mat4.Translate(0,0,-5),
 				proj = mat4.Perspective(glm.Radians(90f), extent.Width / (float)extent.Height, .1f, 10f)
 			};
+
 			ubo.proj[1, 1] *= -1;
 			var values = ubo.Values;
 			var dst = device.MapMemory(unifromBuffersMemory[currentImage], 0, values.Length);
@@ -171,6 +180,8 @@ namespace Meteora.View
 			}
 		}
 
+		
+
 		protected override PipelineVertexInputStateCreateInfo GetVertexInputInfo()
 		{
 			var bindingDesc = Vertex.GetBindingDescription();
@@ -189,9 +200,54 @@ namespace Meteora.View
 
 		protected override void CreateBuffers()
 		{
+			CreateTextureImage();
+			CreateTextureImageView();
+			CreateTextureSampler();
 			CreateVertexBuffer();
 			CreateIndexBuffer();
 			CreateUniformBuffer();
+		}
+
+
+		protected void CreateTextureImage()
+		{
+			using (var image = SKBitmap.Decode(@"Res/Textures/Rin.png"))
+			{
+				var pixels = image.Pixels.SelectMany(c => new float[] { c.Red, c.Green, c.Blue, c.Alpha }).ToArray();
+				(stagingBuffer, stagingBufferMemory) = CreateBuffer(pixels, BufferUsageFlags.TransferSrc, MemoryPropertyFlags.HostVisible | MemoryPropertyFlags.HostCoherent);
+				(textureImage, textureImageMemory) = CreateImage(image.Width, image.Height);
+
+				TransitionImageLayout(textureImage, ImageLayout.Undefined, ImageLayout.TransferDstOptimal);
+				CopyBufferToImage(stagingBuffer, textureImage, image.Width, image.Height);
+				TransitionImageLayout(textureImage, ImageLayout.TransferDstOptimal, ImageLayout.ShaderReadOnlyOptimal);
+			}
+			device.DestroyBuffer(stagingBuffer);
+			device.FreeMemory(stagingBufferMemory);
+		}
+		protected void CreateTextureImageView()
+		{
+			textureImageView = CreateImageView(textureImage);
+		}
+
+		protected void CreateTextureSampler()
+		{
+			var samplerInfo = new SamplerCreateInfo
+			{
+				MagFilter = Filter.Linear,
+				MinFilter = Filter.Linear,
+				AddressModeU = SamplerAddressMode.Repeat,
+				AddressModeV = SamplerAddressMode.Repeat,
+				AddressModeW = SamplerAddressMode.Repeat,
+				AnisotropyEnable = true,
+				MaxAnisotropy = 16,
+				BorderColor = BorderColor.IntOpaqueBlack,
+				UnnormalizedCoordinates = false,
+				CompareEnable = false,
+				CompareOp = CompareOp.Always,
+				MipmapMode = SamplerMipmapMode.Linear,
+			};
+
+			textureSampler = device.CreateSampler(samplerInfo);
 		}
 
 		protected void CreateVertexBuffer()
@@ -239,14 +295,24 @@ namespace Meteora.View
 
 		protected override void CreateDescriptorPool()
 		{
-			DescriptorPoolSize poolSize = new DescriptorPoolSize
+			var poolSizes = new DescriptorPoolSize[]
 			{
-				DescriptorCount = (uint)images.Length
+				new DescriptorPoolSize
+				{
+					Type = DescriptorType.UniformBuffer,
+					DescriptorCount = (uint)images.Length,
+				},
+				new DescriptorPoolSize
+				{
+					Type = DescriptorType.CombinedImageSampler,
+					DescriptorCount = (uint)images.Length
+				}
 			};
+
 			DescriptorPoolCreateInfo poolInfo = new DescriptorPoolCreateInfo
 			{
-				PoolSizeCount = 1,
-				PoolSizes = new DescriptorPoolSize[] { poolSize },
+				PoolSizeCount = (uint)poolSizes.Length,
+				PoolSizes = poolSizes,
 				MaxSets = (uint)images.Length
 			};
 			descriptorPool = device.CreateDescriptorPool(poolInfo);
@@ -271,18 +337,40 @@ namespace Meteora.View
 				{
 					Buffer = uniformBuffers[a],
 					Offset = 0,
-					Range = (sizeof(float) * 16) * 2
+					Range = (sizeof(float) * 16) * 3
 				};
-				var descriptorWrite = new WriteDescriptorSet
+
+				var imageInfo = new DescriptorImageInfo
 				{
-					DstSet = descriptorSets[a],
-					DstBinding = 0,
-					DstArrayElement = 0,
-					DescriptorType = DescriptorType.UniformBuffer,
-					DescriptorCount = 1,
-					BufferInfo = new DescriptorBufferInfo[] { bufferInfo }
+					ImageLayout = ImageLayout.ShaderReadOnlyOptimal,
+					ImageView = textureImageView,
+					Sampler = textureSampler
 				};
-				device.UpdateDescriptorSet(descriptorWrite, null);
+
+				var descriptorWrites = new WriteDescriptorSet[]
+				{
+					new WriteDescriptorSet
+					{
+						DstSet = descriptorSets[a],
+						DstBinding = 0,
+						DstArrayElement = 0,
+						DescriptorType = DescriptorType.UniformBuffer,
+						DescriptorCount = 1,
+						BufferInfo = new DescriptorBufferInfo[] { bufferInfo }
+					},
+					new WriteDescriptorSet
+					{
+						DstSet = descriptorSets[a],
+						DstBinding = 1,
+						DstArrayElement = 0,
+						DescriptorType = DescriptorType.CombinedImageSampler,
+						DescriptorCount = 1,
+						ImageInfo = new DescriptorImageInfo[] { imageInfo }
+					}
+				};
+				//device.UpdateDescriptorSet(descriptorWrites[0], null);
+				//device.UpdateDescriptorSet(descriptorWrites[1], null);
+				device.UpdateDescriptorSets(descriptorWrites, null);
 			}
 
 		}
@@ -294,12 +382,25 @@ namespace Meteora.View
 				Binding = 0,
 				DescriptorType = DescriptorType.UniformBuffer,
 				DescriptorCount = 1,
+				ImmutableSamplers = null,
 				StageFlags = ShaderStageFlags.Vertex
 			};
+
+			var samplerLayoutBinding = new DescriptorSetLayoutBinding
+			{
+				Binding = 1,
+				DescriptorCount = 1,
+				DescriptorType = DescriptorType.CombinedImageSampler,
+				ImmutableSamplers = null,
+				StageFlags = ShaderStageFlags.Fragment
+			};
+
+			var bindings = new[] { uboLayoutBinding, samplerLayoutBinding };
+
 			var layoutInfo = new DescriptorSetLayoutCreateInfo
 			{
-				BindingCount = 1,
-				Bindings = new[] { uboLayoutBinding }
+				BindingCount = (uint)bindings.Length,
+				Bindings = bindings,
 			};
 			descriptorSetLayout = device.CreateDescriptorSetLayout(layoutInfo);
 		}
@@ -321,6 +422,10 @@ namespace Meteora.View
 			}
 			device.DestroyBuffer(vertexBuffer);
 			device.DestroyBuffer(indexBuffer);
+			device.DestroySampler(textureSampler);
+			device.DestroyImageView(textureImageView);
+			device.DestroyImage(textureImage);
+			device.FreeMemory(textureImageMemory);
 			device.FreeMemory(vertexBufferMemory);
 			device.FreeMemory(indexBufferMemory);
 		}
