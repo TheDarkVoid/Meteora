@@ -347,6 +347,7 @@ namespace Meteora.View
 					Sampler = textureSampler
 				};
 
+				//TODO: Dispose this
 				var descriptorWrites = new WriteDescriptorSet[]
 				{
 					new WriteDescriptorSet

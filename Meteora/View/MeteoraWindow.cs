@@ -115,8 +115,7 @@ namespace Meteora.View
 			data.instance = CreateInstance(data.appInfo);
 			var ptrProp = (typeof(IMarshalling)).GetProperty("Handle");
 			var ptr = (IntPtr)ptrProp.GetValue(data.instance);
-
-
+			
 			SDL.SDL_Vulkan_CreateSurface(data.windowPtr, ptr, out IntPtr surface);
 
 			data.surface = (SurfaceKhr)FormatterServices.GetSafeUninitializedObject(typeof(SurfaceKhr));
